@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Заказы — АГРУС</title>
+  <link rel="stylesheet" href="/styles.css"/>
+</head>
+<body id="page-orders">
+  <main class="container">
+    <h1 id="title">Заказы</h1>
+    <div id="orderGrid" class="card-grid"></div>
+  </main>
+  <script src="/app.js"></script>
+  <script>
+    const q = s=>document.querySelector(s);
+    const grid = q("#orderGrid");
+    const title = q("#title");
+    let me=null;
+    function item(o){
+      const d = document.createElement("div");
+      d.className="card";
+      d.innerHTML = \`
+        <div class="info">
+          <h3>Заказ #\${o.id}</h3>
+          <p>Статус: <strong>\${statusLabel(o.status)}</strong></p>
+          <div class="row actions"></div>
+        </div>\`;
+      const actions = d.querySelector(".actions");
+      if(me.role==="master"){
+        if(o.status==="NEW"){
+          actions.append(btn("Принять", ()=>upd(o.id,"ACCEPTED")));
+          actions.append(btn("Отклонить", ()=>{
+            const reason = prompt("Причина отказа:")||""; upd(o.id,"REJECTED",reason);
+          }));
+        } else if (o.status==="ACCEPTED"){
+          actions.append(btn("Выполнено", ()=>upd(o.id,"DONE")));
+          actions.append(btn("Отменить", ()=>upd(o.id,"CANCELLED")));
+        }
+      } else {
+        if(o.status==="NEW" || o.status==="ACCEPTED"){
+          actions.append(btn("Отменить", ()=>upd(o.id,"CANCELLED")));
+        }
+      }
+      return d;
+    }
+    function btn(text,fn){ const b=document.createElement("button"); b.className="btn-secondary"; b.textContent=text; b.onclick=fn; return b; }
+    async function upd(id, st, reason=""){ try{ await API.orders.setStatus(id, st, reason); await load(); }catch(e){ alert("Нельзя"); } }
+    async function load(){
+      try{
+        me = await API.getMe();
+        title.textContent = me.role==="master" ? "Заказы (мастер)" : "Мои заказы";
+        const orders = await API.orders.list();
+        grid.innerHTML = "";
+        if(!orders.length){ grid.innerHTML = "<p>Пока нет заказов</p>"; return; }
+        orders.forEach(o=> grid.append(item(o)));
+      } catch(e){ location.href="/login.html"; }
+    }
+    document.addEventListener("DOMContentLoaded", load);
+  </script>
+</body>
+</html>

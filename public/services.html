@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Услуги — АГРУС</title>
+  <link rel="stylesheet" href="/styles.css"/>
+</head>
+<body id="page-services">
+  <main class="container">
+    <h1>Услуги</h1>
+    <div class="chips" id="catFilter"></div>
+    <div id="srvGrid" class="card-grid"></div>
+  </main>
+  <script src="/app.js"></script>
+  <script>
+    const q = s=>document.querySelector(s);
+    const qa = s=>document.querySelectorAll(s);
+    const catsWrap = q("#catFilter");
+    const grid = q("#srvGrid");
+    let cats = [], services = [], me=null;
+
+    function draw(list){
+      grid.innerHTML="";
+      if(!list.length){ grid.innerHTML="<p>Нет услуг.</p>"; return; }
+      list.forEach(s=>{
+        const cat = cats.find(x=>x.id===s.categoryId);
+        const d = document.createElement("div");
+        d.className="service-card";
+        d.innerHTML = \`
+          <h3>\${s.title}</h3>
+          <p>\${s.description||""}</p>
+          <p class="price">\${(s.price||0).toFixed(2)} ₽</p>
+          <p class="cat">Категория: \${cat?cat.name:'—'}</p>
+          <div class="row">
+            <button class="btn" data-order="\${s.id}">Заказать</button>
+          </div>\`;
+        d.querySelector("[data-order]").onclick = async ()=>{
+          try{
+            if(!me){ alert("Войдите как клиент"); location.href="/login.html"; return; }
+            if(me.role!=="client"){ alert("Заказывать может только клиент"); return; }
+            await API.orders.create({serviceId:s.id, comment:""});
+            alert("Заявка отправлена");
+          }catch(e){ alert("Ошибка"); }
+        };
+        grid.append(d);
+      });
+    }
+    function drawChips(){
+      catsWrap.innerHTML="";
+      const all = document.createElement("button");
+      all.textContent = "Все"; all.className="btn-secondary"; all.onclick = ()=>draw(services);
+      catsWrap.append(all);
+      cats.forEach(c=>{
+        const b = document.createElement("button");
+        b.className="btn-secondary";
+        b.textContent = c.name;
+        b.onclick = ()=> draw(services.filter(s=>s.categoryId===c.id));
+        catsWrap.append(b);
+      });
+    }
+
+    document.addEventListener("DOMContentLoaded", async ()=>{
+      try { me = await API.getMe(); } catch(_){}
+      cats = await API.categories.list();
+      services = await API.services.list();
+      drawChips();
+      draw(services);
+    });
+  </script>
+</body>
+</html>

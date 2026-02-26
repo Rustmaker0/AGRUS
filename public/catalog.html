@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Каталог услуг — АГРУС</title>
+  <link rel="stylesheet" href="/styles.css"/>
+  <style>
+    .market { display:grid; grid-template-columns: 320px 1fr; gap:16px; }
+    @media (max-width: 1000px){ .market{ grid-template-columns: 1fr; } }
+    .note { margin-top: 8px; color: var(--muted); }
+    .toast { position:fixed; right:16px; bottom:16px; background:#fff; border:1px solid var(--border);
+             padding:12px 14px; border-radius:10px; box-shadow: var(--shadow); display:none; }
+    .grid-head { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:8px; }
+    .pagination { display:flex; gap:6px; flex-wrap: wrap; justify-content:center; margin-top:12px; }
+    .page { border:1px solid var(--border); background:#fff; border-radius:8px; padding:6px 10px; cursor:pointer; }
+    .page.active { border-color: var(--primary); background: var(--primary-weak); color: var(--primary); }
+    .card .clamp { display:-webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow:hidden; }
+
+    /* дерево категорий */
+    .tree { font-size: .95rem; }
+    .tree ul { list-style: none; margin: 0; padding-left: 14px; }
+    .tree li { margin: 2px 0; }
+    .tree .node { display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:8px; cursor:pointer; }
+    .tree .node:hover { background: var(--primary-weak); }
+    .tree .node.active { background: var(--primary-weak); color: var(--primary); font-weight: 700; }
+    .tree .toggle { width:18px; height:18px; border:1px solid var(--border); border-radius:4px; display:inline-flex; align-items:center; justify-content:center; font-weight:700; color:var(--muted); }
+    .tree .toggle.disabled { opacity:.35; }
+  </style>
+</head>
+<body id="page-catalog">
+  <main class="container">
+    <div class="card">
+      <div class="card-title">
+        <div>
+          <h1 style="margin-bottom:4px">Каталог услуг</h1>
+          <div class="help">Ищите услуги по древу категорий, цене и названию. Оформляйте заявки в один клик.</div>
+        </div>
+        <div class="stats-grid" id="miniKPI" style="flex:1 1 360px"></div>
+      </div>
+    </div>
+
+    <section class="market" style="margin-top:12px">
+      <!-- ЛЕВАЯ ПАНЕЛЬ -->
+      <aside id="filters" class="card">
+        <div class="card-title"><h2>Фильтры</h2></div>
+
+        <div class="form">
+          <div>
+            <label for="q">Поиск</label>
+            <input id="q" class="input" placeholder="Название, описание..."/>
+          </div>
+
+          <div>
+            <label>Категории</label>
+            <div class="tree" id="categoryTree"></div>
+          </div>
+
+          <div class="row">
+            <div style="flex:1">
+              <label for="minPrice">Цена от</label>
+              <input id="minPrice" class="input" type="number" min="0" step="1" placeholder="0"/>
+            </div>
+            <div style="flex:1">
+              <label for="maxPrice">до</label>
+              <input id="maxPrice" class="input" type="number" min="0" step="1" placeholder="∞"/>
+            </div>
+          </div>
+
+          <div>
+            <label for="sort">Сортировка</label>
+            <select id="sort" class="input">
+              <option value="relevance">По релевантности</option>
+              <option value="price_asc">Сначала дешёвые</option>
+              <option value="price_desc">Сначала дорогие</option>
+              <option value="title">По названию</option>
+            </select>
+          </div>
+
+          <div class="row" style="justify-content: space-between">
+            <button class="btn-secondary" id="reset">Сбросить</button>
+            <span class="help" id="countInfo"></span>
+          </div>
+        </div>
+      </aside>
+
+      <!-- ПРАВАЯ ПАНЕЛЬ -->
+      <section id="content" class="card">
+        <div class="grid-head">
+          <div class="help" id="resultInfo"></div>
+          <div class="help">Показываем по <strong id="pageSizeInfo">12</strong> на странице</div>
+        </div>
+        <div id="svcGrid" class="card-grid"></div>
+        <div id="pager" class="pagination"></div>
+      </section>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="/app.js"></script>
+  <script>
+    const q = (s)=>document.querySelector(s), qa=(s)=>document.querySelectorAll(s);
+    let me=null, categories=[], services=[];
+    let filter = { query:'', catId:'ALL', min:null, max:null, sort:'relevance' };
+    let page = 1, pageSize = 12;
+
+    document.addEventListener('DOMContentLoaded', init);
+
+    async function orderFlow(serviceId){
+            const me = await API.getMe().catch(()=>null);
+            if(!me){ location.href = "/login.html?mode=login"; return; }
+            if(me.role!=='client'){ alert("Для оформления заявки войдите как клиент."); return; }
+            location.href = `/service.html?id=${serviceId}`;
+        } 
+    async function init(){
+      try{ me = await API.getMe(); }catch{}
+      await Promise.all([loadCats(), loadServices()]);
+      renderMiniKPI();
+      hydrateFromURL();
+      buildTree();
+      bindFilterInputs();
+      applyFiltersAndDraw();
+    }
+
+    async function loadCats(){ categories = await API.categories.list(); }
+    async function loadServices(){ services = await API.services.list(); }
+
+    function renderMiniKPI(){
+      q('#miniKPI').innerHTML =
+        `<div class="stat-card"><div class="stat-number">${services.length}</div><div class="stat-label">Всего услуг</div></div>`;
+    }
+
+    function hydrateFromURL(){
+      const u = new URL(location.href);
+      filter.query = (u.searchParams.get('q')||'').trim().toLowerCase();
+      filter.catId = u.searchParams.get('cat') || 'ALL';
+      filter.min   = u.searchParams.get('min'); filter.min = filter.min==null||filter.min===''?null:Number(filter.min);
+      filter.max   = u.searchParams.get('max'); filter.max = filter.max==null||filter.max===''?null:Number(filter.max);
+      filter.sort  = u.searchParams.get('sort') || 'relevance';
+      page         = Math.max(1, Number(u.searchParams.get('page') || 1));
+    }
+    function pushURL(){
+      const u = new URL(location.href);
+      u.searchParams.set('q', filter.query);
+      u.searchParams.set('cat', filter.catId);
+      u.searchParams.set('sort', filter.sort);
+      if(filter.min!=null) u.searchParams.set('min', filter.min); else u.searchParams.delete('min');
+      if(filter.max!=null) u.searchParams.set('max', filter.max); else u.searchParams.delete('max');
+      u.searchParams.set('page', page);
+      history.replaceState(null, '', u);
+    }
+
+    function buildTree(){
+      const byParent = {};
+      categories.forEach(c=>{
+        const p = c.parentId ?? 0;
+        (byParent[p] ||= []).push(c);
+      });
+      Object.values(byParent).forEach(arr => arr.sort((a,b)=> a.name.localeCompare(b.name)));
+
+      const treeEl = q('#categoryTree'); treeEl.innerHTML = "";
+      const rootWrap = document.createElement('div');
+      rootWrap.innerHTML = renderNodeList(byParent[0]||[], 0);
+      treeEl.append(rootWrap);
+
+      treeEl.addEventListener('click', (e)=>{
+        const node = e.target.closest('.node'); if(!node) return;
+        const id = node.dataset.id;
+        qa('#categoryTree .node').forEach(n=> n.classList.remove('active'));
+        node.classList.add('active');
+        filter.catId = id;
+        page = 1; pushURL(); applyFiltersAndDraw();
+      });
+
+      treeEl.addEventListener('click', (e)=>{
+        const t = e.target.closest('.toggle'); if(!t) return;
+        e.stopPropagation();
+        if(t.classList.contains('disabled')) return;
+        const li = t.closest('li');
+        li.classList.toggle('collapsed');
+        t.textContent = li.classList.contains('collapsed') ? '+' : '–';
+        const ul = li.querySelector(':scope > ul');
+        if(ul) ul.style.display = li.classList.contains('collapsed') ? 'none' : '';
+      });
+
+      const all = document.createElement('div');
+      all.className = "node " + (filter.catId==='ALL' ? "active": "");
+      all.dataset.id = "ALL";
+      all.innerHTML = `<span class="toggle disabled">•</span><span>Все категории</span>`;
+      treeEl.prepend(all);
+
+      if(filter.catId!=='ALL'){
+        const pathIds = [];
+        let cur = categories.find(c=> String(c.id)===String(filter.catId));
+        while(cur){ pathIds.push(cur.id); cur = categories.find(c=> c.id === cur.parentId); }
+        pathIds.forEach(id=>{
+          const li = treeEl.querySelector(`li[data-id="${id}"]`);
+          if(li){
+            li.classList.remove('collapsed');
+            const tgl = li.querySelector(':scope > .node .toggle');
+            if(tgl) tgl.textContent = '–';
+            const ul = li.querySelector(':scope > ul'); if(ul) ul.style.display = '';
+          }
+        });
+      }
+    }
+
+    function renderNodeList(items, level){
+      return `<ul>${items.map(c=>{
+        const children = categories.filter(x=> x.parentId === c.id);
+        const hasChildren = children.length>0;
+        const collapsed = (level>0);
+        const isActive = String(filter.catId) === String(c.id);
+        return `
+          <li data-id="${c.id}" class="${collapsed ? 'collapsed':''}">
+            <div class="node ${isActive?'active':''}" data-id="${c.id}">
+              <span class="toggle ${hasChildren?'':'disabled'}">${hasChildren ? (collapsed?'+':'–') : '•'}</span>
+              <span>${c.name}</span>
+            </div>
+            ${hasChildren ? renderNodeList(children, level+1) : ''}
+          </li>
+        `;
+      }).join('')}</ul>`;
+    }
+
+    function bindFilterInputs(){
+      q('#q').value = filter.query;
+      q('#minPrice').value = filter.min==null ? '' : filter.min;
+      q('#maxPrice').value = filter.max==null ? '' : filter.max;
+      q('#sort').value = filter.sort;
+
+      q('#q').oninput       = e=> { filter.query = e.target.value.trim().toLowerCase(); page=1; pushURL(); applyFiltersAndDraw(); };
+      q('#minPrice').oninput= e=> { const v=e.target.value; filter.min = v===''?null:Number(v); page=1; pushURL(); applyFiltersAndDraw(); };
+      q('#maxPrice').oninput= e=> { const v=e.target.value; filter.max = v===''?null:Number(v); page=1; pushURL(); applyFiltersAndDraw(); };
+      q('#sort').onchange   = e=> { filter.sort = e.target.value; pushURL(); applyFiltersAndDraw(); };
+      q('#reset').onclick   = ()=>{
+        filter = { query:'', catId:'ALL', min:null, max:null, sort:'relevance' };
+        page = 1; pushURL(); buildTree(); bindFilterInputs(); applyFiltersAndDraw();
+      };
+    }
+
+    function applyFiltersAndDraw(){
+      let list = [...services];
+
+      if(filter.catId!=='ALL'){
+        const ids = new Set([Number(filter.catId)]);
+        const queue = [Number(filter.catId)];
+        while(queue.length){
+          const pid = queue.shift();
+          const kids = categories.filter(c=> c.parentId === pid);
+          for(const k of kids){ if(!ids.has(k.id)){ ids.add(k.id); queue.push(k.id); } }
+        }
+        list = list.filter(s=> ids.has(Number(s.categoryId)));
+      }
+
+      if(filter.query){
+        const ql = filter.query;
+        list = list.filter(s=>
+          (s.title||'').toLowerCase().includes(ql) ||
+          (s.description||'').toLowerCase().includes(ql)
+        );
+      }
+      if(filter.min!=null) list = list.filter(s=> Number(s.price||0) >= filter.min);
+      if(filter.max!=null) list = list.filter(s=> Number(s.price||0) <= filter.max);
+
+      if(filter.sort==='price_asc') list.sort((a,b)=> (a.price||0)-(b.price||0));
+      else if(filter.sort==='price_desc') list.sort((a,b)=> (b.price||0)-(a.price||0));
+      else if(filter.sort==='title') list.sort((a,b)=> (a.title||'').localeCompare(b.title||''));
+
+      q('#countInfo').textContent   = `${list.length} позиций`;
+      q('#resultInfo').textContent  = (()=>{
+        if(filter.catId==='ALL') return 'Все категории';
+        const current = categories.find(c=> String(c.id)===String(filter.catId));
+        if(!current) return 'Категория';
+        const path = [current.name];
+        let p = categories.find(c=> c.id === current.parentId);
+        while(p){ path.push(p.name); p = categories.find(c=> c.id === p.parentId); }
+        return path.reverse().join(' / ');
+      })();
+
+      const pages = Math.max(1, Math.ceil(list.length / pageSize));
+      if(page > pages) page = pages;
+      const start = (page-1)*pageSize, end = start + pageSize;
+      const pageItems = list.slice(start, end);
+      q('#pageSizeInfo').textContent = pageSize;
+
+      drawGrid(pageItems);
+      drawPager(page, pages);
+    }
+
+    function drawGrid(items){
+      const grid = q('#svcGrid');
+      if(!items.length){
+        grid.innerHTML = `<div class="empty">По вашему запросу ничего не найдено.</div>`;
+        return;
+      }
+      grid.innerHTML = "";
+      items.forEach(s=>{
+        const cat = categories.find(c=>c.id===s.categoryId);
+        const el = document.createElement('div');
+        el.className='service-card';
+        el.innerHTML = `
+          <h3>${s.title}</h3>
+          <p class="clamp">${s.description||''}</p>
+          <p class="price"><strong>${(s.price||0).toFixed(2)} ₽</strong></p>
+          <p class="help">${cat?cat.name:'Без категории'} • Мастер #${s.masterId}</p>
+          <div class="row">
+            <a class="btn" href="/service.html?id=${s.id}">Подробнее</a>
+          </div>
+          <span class="note">Перейдите в «Подробнее», чтобы выбрать удобный день и время</span>
+        `;
+        grid.append(el);
+      });
+    }
+
+    function drawPager(cur, total){
+      const pager = q('#pager');
+      if(total<=1){ pager.innerHTML=''; return; }
+      const makeBtn = (n,label=n)=> `<button class="page ${n===cur?'active':''}" data-p="${n}">${label}</button>`;
+      let html = '';
+      if(cur>1) html += makeBtn(cur-1,'‹');
+      const range = [...Array(total)].map((_,i)=>i+1).filter(n=>{
+        if(total<=7) return true;
+        if(n<=2 || n>total-2 || Math.abs(n-cur)<=1) return true;
+        return false;
+      });
+      let last=0;
+      for(const n of range){
+        if(n-last>1) html += `<span class="help">…</span>`;
+        html += makeBtn(n);
+        last=n;
+      }
+      if(cur<total) html += makeBtn(cur+1,'›');
+      pager.innerHTML = html;
+      pager.onclick = (e)=>{
+        const b = e.target.closest('.page'); if(!b) return;
+        page = Number(b.dataset.p) || 1; pushURL(); applyFiltersAndDraw();
+      };
+    }
+  </script>
+</body>
+</html>

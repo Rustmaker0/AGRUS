@@ -1,0 +1,52 @@
+1. Таблица users (пользователи)
+
+Хранит всех пользователей системы (клиенты и мастера)
+Колонка	Тип	Ограничения	Описание
+id	INTEGER	PRIMARY KEY AUTOINCREMENT	Уникальный идентификатор пользователя
+role	TEXT	NOT NULL CHECK(role IN ('client', 'master'))	Роль пользователя (клиент или мастер)
+name	TEXT	NOT NULL	Имя пользователя
+email	TEXT	UNIQUE NOT NULL	Email для входа
+passSalt	TEXT	NOT NULL	Соль для хеширования пароля
+passHash	TEXT	NOT NULL	Хеш пароля
+created_at	DATETIME	DEFAULT CURRENT_TIMESTAMP	Дата регистрации
+2. Таблица categories (категории услуг)
+Колонка	Тип	Ограничения	Описание
+id	INTEGER	PRIMARY KEY AUTOINCREMENT	Уникальный идентификатор категории
+name	TEXT	UNIQUE NOT NULL	Название категории (например: "Сантехника")
+created_at	DATETIME	DEFAULT CURRENT_TIMESTAMP	Дата создания категории
+3. Таблица services (услуги)
+Колонка	Тип	Ограничения	Описание
+id	INTEGER	PRIMARY KEY AUTOINCREMENT	Уникальный идентификатор услуги
+masterId	INTEGER	NOT NULL, FOREIGN KEY → users(id)	ID мастера, предоставляющего услугу
+categoryId	INTEGER	NOT NULL, FOREIGN KEY → categories(id)	ID категории услуги
+title	TEXT	NOT NULL	Название услуги
+description	TEXT		Подробное описание услуги
+price	INTEGER	NOT NULL CHECK(price > 0)	Стоимость услуги в рублях
+created_at	DATETIME	DEFAULT CURRENT_TIMESTAMP	Дата добавления услуги
+4. Таблица orders (заказы)
+Колонка	Тип	Ограничения	Описание
+id	INTEGER	PRIMARY KEY AUTOINCREMENT	Уникальный идентификатор заказа
+serviceId	INTEGER	NOT NULL, FOREIGN KEY → services(id)	ID заказанной услуги
+masterId	INTEGER	NOT NULL, FOREIGN KEY → users(id)	ID мастера (дублируется для удобства)
+clientId	INTEGER	NOT NULL, FOREIGN KEY → users(id)	ID клиента, создавшего заказ
+comment	TEXT		Комментарий клиента к заказу
+desired_datetime	DATETIME	NOT NULL	Желаемая дата и время выполнения
+status	TEXT	NOT NULL CHECK(status IN ('NEW', 'ACCEPTED', 'REJECTED', 'DONE', 'CANCELLED')) DEFAULT 'NEW'	Статус заказа
+status_date	DATETIME	DEFAULT CURRENT_TIMESTAMP	Дата последнего изменения статуса
+rejectionReason	TEXT		Причина отказа (если статус REJECTED)
+created_at	DATETIME	DEFAULT CURRENT_TIMESTAMP	Дата создания заказа
+5. Таблица sessions (сессии пользователей)
+Колонка	Тип	Ограничения	Описание
+id	INTEGER	PRIMARY KEY AUTOINCREMENT	Уникальный идентификатор сессии
+token	TEXT	UNIQUE NOT NULL	JWT токен сессии
+userId	INTEGER	NOT NULL, FOREIGN KEY → users(id)	ID пользователя
+expiresAt	INTEGER	NOT NULL	Время истечения токена (в миллисекундах)
+created_at	DATETIME	DEFAULT CURRENT_TIMESTAMP	Дата создания сессии
+6. Таблица availability (расписание мастеров)
+Колонка	Тип	Ограничения	Описание
+id	INTEGER	PRIMARY KEY AUTOINCREMENT	Уникальный идентификатор записи
+masterId	INTEGER	UNIQUE NOT NULL, FOREIGN KEY → users(id)	ID мастера
+slotMinutes	INTEGER	DEFAULT 30	Длительность слота в минутах
+weekTemplate	TEXT	NOT NULL	JSON с расписанием по дням недели
+exceptions	TEXT		JSON с исключениями по датам
+updated_at	DATETIME	DEFAULT CURRENT_TIMESTAMP	Дата последнего обновления

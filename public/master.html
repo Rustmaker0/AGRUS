@@ -1,0 +1,915 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ЛК мастера — АГРУС</title>
+  <link rel="stylesheet" href="/styles.css"/>
+  <style>
+    textarea#svcDesc { min-height: 140px; line-height: 1.45; }
+
+    /* ——— Расписание ——— */
+    .sched-grid { display:grid; grid-template-columns: 1.1fr .9fr; gap:16px; }
+    @media (max-width: 1060px){ .sched-grid{ grid-template-columns: 1fr; } }
+
+    .day-row{ border:1px solid var(--border); border-radius:12px; padding:10px; margin-bottom:10px; background:#fff; }
+    .day-head{ display:flex; align-items:center; gap:10px; justify-content:space-between; flex-wrap:wrap; }
+    .day-title{ font-weight:800; }
+    .day-toggle{ display:flex; align-items:center; gap:8px; }
+    .intervals{ display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+    .int-row{ display:flex; gap:8px; align-items:center; }
+    .int-row input[type=time]{ width:120px; }
+    .int-row .btn-danger{ padding:6px 8px; }
+    .int-add{ margin-top:8px; }
+    .err{ color:#b42318; margin-top:6px; }
+
+    .exceptions { display:flex; flex-direction:column; gap:8px; }
+    .ex-row { border:1px dashed var(--border); border-radius:10px; padding:10px; }
+    .ex-head{ display:flex; align-items:center; gap:10px; justify-content:space-between; flex-wrap:wrap; }
+    .ex-ctrls{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+    .ex-int { display:flex; gap:8px; align-items:center; margin-top:8px; }
+    .ex-int input[type=time]{ width:120px; }
+    .hint{ color: var(--muted); }
+
+    .save-bar{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-top:10px; }
+    .ok { color:#067647; }
+    .warn { color:#b54708; }
+    .modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; z-index:50; }
+.modal{ background:#fff; border:1px solid var(--border); border-radius:14px; box-shadow:var(--shadow); width:min(720px, 92vw); }
+.modal .modal-head{ display:flex; align-items:center; justify-content:space-between; padding:12px 14px; border-bottom:1px solid var(--border); }
+.modal .modal-body{ padding:12px 14px; display:grid; gap:10px; }
+.modal .modal-row{ display:grid; grid-template-columns: 180px 1fr; gap:10px; align-items:start; }
+@media (max-width: 560px){ .modal .modal-row{ grid-template-columns: 1fr; } }
+.modal .modal-actions{ display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; padding:10px 14px; border-top:1px solid var(--border); }
+
+
+    .card .subtle { color: var(--muted); font-size:.95rem; }
+  </style>
+</head>
+<!-- === Order details modal === -->
+<div id="orderBackdrop" class="modal-backdrop" role="dialog" aria-modal="true">
+  <div class="modal" role="document">
+    <div class="modal-head">
+      <h3 id="ordTitle" style="margin:0">Заказ</h3>
+      <button class="btn-secondary" onclick="document.getElementById('orderBackdrop').style.display='none'">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-row"><div class="help">Услуга</div><div id="ordService">—</div></div>
+      <div class="modal-row"><div class="help">Стоимость</div><div id="ordPrice">—</div></div>
+      <div class="modal-row"><div class="help">Когда</div><div id="ordWhen">—</div></div>
+      <div class="modal-row"><div class="help">Статус</div><div id="ordStatus">—</div></div>
+
+      <div class="modal-row"><div class="help">Клиент</div>
+        <div>
+          <div id="ordClient">—</div>
+          <div id="ordClientEmail" class="help">—</div>
+        </div>
+      </div>
+
+      <div class="modal-row"><div class="help">Комментарий</div><div id="ordComment">—</div></div>
+
+      <div id="ordReasonBox" class="modal-row" style="display:none">
+        <div class="help">Причина отказа</div>
+        <div id="ordReason">—</div>
+      </div>
+    </div>
+    <div id="ordActions" class="modal-actions">
+      <!-- Кнопки действий подставляются скриптом -->
+    </div>
+  </div>
+</div>
+<body id="page-master">
+  <main class="container">
+    <!-- Заголовок и сводка -->
+    <div class="card">
+      <div class="card-title">
+        <div>
+          <h1 style="margin-bottom:4px">Личный кабинет мастера</h1>
+          <div class="help">Логика работы: <strong>Сначала категории</strong> → затем <strong>создание услуги</strong> → управление и <strong>заказы</strong>.</div>
+        </div>
+        <span id="masterName" class="tag">—</span>
+      </div>
+
+      <div class="stats-grid" id="summary"></div>
+
+      <div style="margin-top:12px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+        <div class="tabs">
+          <button class="tab" data-tab="categories">Категории</button>
+          <button class="tab" data-tab="create">Создать услугу</button>
+          <button class="tab" data-tab="services">Мои услуги</button>
+          <button class="tab" data-tab="orders">Заказы</button>
+          <button class="tab" data-tab="schedule">Расписание</button>
+        </div>
+        <span class="help">Подсказка: если нужной категории нет — создайте её во вкладке «Категории»</span>
+      </div>
+    </div>
+
+    <!-- Контент -->
+    <div class="col-2" style="margin-top:12px">
+      <!-- Левая колонка (меняется по вкладке) -->
+      <section id="leftCol" class="card"></section>
+
+      <!-- Правая колонка (меняется по вкладке) -->
+      <section id="rightCol" class="card"></section>
+    </div>
+  </main>
+
+  <script src="/app.js"></script>
+  <script>
+    // ========= helpers & state
+    const q = (s)=>document.querySelector(s), qa=(s)=>document.querySelectorAll(s);
+    const statusNames = { NEW:"Новые", ACCEPTED:"Принятые", DONE:"Выполненные", REJECTED:"Отклонённые", CANCELLED:"Отменённые" };
+    const norm = (v)=> String(v||"").trim().replace(/\s+/g," ").toLowerCase();
+
+    let me = null;
+    let categories = [];
+    let servicesAll = [];
+    let myServices = [];
+    let myOrders = [];
+
+    let currentTab = "categories";  // стартуем с категорий
+    let orderFilter = "ALL";
+
+    // расписание
+    const DOW = [
+      {i:1, t:"Понедельник"}, {i:2, t:"Вторник"}, {i:3, t:"Среда"},
+      {i:4, t:"Четверг"}, {i:5, t:"Пятница"}, {i:6, t:"Суббота"}, {i:0, t:"Воскресенье"}
+    ];
+    let availability = null;        // {slotMinutes, weekTemplate:{0..6:[[from,to],...]}, exceptions:{"YYYY-MM-DD":[[from,to],...]}}
+    let weekErrors = {};            // по дням ошибки перекрытий
+    let exErrors = {};              // по датам ошибки перекрытий
+    let saveMsgTimer = null;
+
+    document.addEventListener("DOMContentLoaded", init);
+
+    async function init(){
+      try {
+        me = await API.getMe();
+        if(me.role !== "master") return location.href = "/";
+        q("#masterName").textContent = (me.name||"Мастер") + " (" + me.email + ")";
+      } catch (_) { return location.href="/login.html?mode=login"; }
+
+      bindTabs();
+      await loadAll();
+      updateKPI();
+      renderTab();
+    }
+
+    function bindTabs(){
+      qa(".tab").forEach(b=>{
+        b.addEventListener("click", ()=>{
+          qa(".tab").forEach(x=>x.classList.remove("active"));
+          b.classList.add("active");
+          currentTab = b.dataset.tab;
+          renderTab();
+        });
+      });
+      // активируем "Категории" как первую вкладку
+      const first = document.querySelector('.tab[data-tab="categories"]');
+      if(first) first.classList.add('active');
+    }
+
+    async function loadAll(){
+      const [cats, services, orders, kpi] = await Promise.all([
+        API.categories.list(),
+        API.services.list(),
+        API.orders.list(),
+        API.analytics.summary().catch(()=>({total:0,NEW:0,ACCEPTED:0,DONE:0}))
+      ]);
+      categories = cats;
+      servicesAll = services;
+      myServices = services.filter(s=> s.masterId === me.id);
+      myOrders = orders;
+
+      q("#summary").innerHTML = [
+        ["Категорий", categories.length],
+        ["Моих услуг", myServices.length],
+        ["Всего заказов", kpi.total||0],
+        ["Новые", kpi.NEW||0],
+        ["Принятые", kpi.ACCEPTED||0],
+        ["Выполнены", kpi.DONE||0]
+      ].map(([l,v])=> `<div class="stat-card"><div class="stat-number">${v}</div><div class="stat-label">${l}</div></div>`).join("");
+
+      // подгружаем расписание мастера
+      availability = await API.availability.get(me.id).catch(()=> defaultAvailability());
+      normalizeAvailability();
+    }
+
+    async function updateKPI(){
+      const k = await API.analytics.summary().catch(()=>({total:0,NEW:0,ACCEPTED:0,DONE:0}));
+      q("#summary").innerHTML = [
+        ["Категорий", categories.length],
+        ["Моих услуг", myServices.length],
+        ["Всего заказов", k.total||0],
+        ["Новые", k.NEW||0],
+        ["Принятые", k.ACCEPTED||0],
+        ["Выполнены", k.DONE||0]
+      ].map(([l,v])=> `<div class="stat-card"><div class="stat-number">${v}</div><div class="stat-label">${l}</div></div>`).join("");
+    }
+
+    function renderTab(){
+      if(currentTab === "categories") return renderCategoriesTab();
+      if(currentTab === "create")     return renderCreateServiceTab();
+      if(currentTab === "services")   return renderMyServicesTab();
+      if(currentTab === "orders")     return renderOrdersTab();
+      if(currentTab === "schedule")   return renderScheduleTab();
+    }
+
+    // ========= CATEGORIES
+    function renderCategoriesTab(){
+      // LEFT: создание с проверкой дублей
+      q("#leftCol").innerHTML = `
+        <div class="card-title"><h2>Создать категорию</h2></div>
+        <div class="form">
+          <div>
+            <label for="newCatName">Название категории</label>
+            <input id="newCatName" class="input" placeholder="Например: Сантехника / Установка смесителей"/>
+            <div id="newCatErr" class="error"></div>
+          </div>
+          <div class="row" style="justify-content:flex-end">
+            <button class="btn" id="addCat">Добавить</button>
+          </div>
+          <p class="help">Проверка на совпадение выполняется автоматически (без учёта регистра и лишних пробелов).</p>
+        </div>
+      `;
+      q("#addCat").onclick = onCreateCategory;
+
+      // RIGHT: список категорий
+      drawCategories();
+    }
+
+    function drawCategories(){
+      const box = q("#rightCol");
+      if(!categories.length){
+        box.innerHTML = `<div class="empty">Категории отсутствуют. Создайте первую слева.</div>`;
+        return;
+      }
+      const countMap = myServices.reduce((m,s)=>{ m[s.categoryId]=(m[s.categoryId]||0)+1; return m; },{});
+      box.innerHTML = `<div class="card-row" id="catGrid"></div>`;
+      const grid = q("#catGrid");
+      categories.forEach(c=>{
+        const d = document.createElement("div");
+        d.className="card";
+        d.innerHTML = `
+          <div class="info">
+            <h3>${c.name}</h3>
+            <p class="help">${countMap[c.id]||0} моих услуг</p>
+            <div class="row" style="margin-top:6px">
+              <button class="btn-secondary" data-edit="${c.id}">Переименовать</button>
+              <button class="btn-danger" data-del="${c.id}">Удалить</button>
+            </div>
+          </div>`;
+        d.querySelector('[data-edit]').onclick = async ()=>{
+          const name = prompt("Новое имя категории:", c.name);
+          if(!name) return;
+          if(categories.some(x=> x.id!==c.id && norm(x.name)===norm(name))){
+            alert("Такая категория уже существует.");
+            return;
+          }
+          await API.categories.update(c.id, {name});
+          await reloadCats(true);
+        };
+        d.querySelector('[data-del]').onclick = async ()=>{
+          const count = countMap[c.id]||0;
+          if(!confirm(`Удалить категорию? Связанных ваших услуг: ${count}.`)) return;
+          await API.categories.delete(c.id);
+          await reloadCats(true);
+        };
+        grid.append(d);
+      });
+    }
+
+    async function onCreateCategory(){
+      const name = (q("#newCatName").value||"").trim();
+      const err = q("#newCatErr");
+      err.textContent = "";
+      if(!name){ err.textContent="Введите название"; return; }
+      if(categories.some(c => norm(c.name) === norm(name))){
+        err.textContent = "Такая категория уже существует.";
+        return;
+      }
+      await API.categories.create(name);
+      q("#newCatName").value="";
+      await reloadCats();
+      err.textContent = "";
+    }
+
+    async function reloadCats(alsoReloadServices=false){
+      categories = await API.categories.list();
+      if(alsoReloadServices){
+        servicesAll = await API.services.list();
+        myServices = servicesAll.filter(s=> s.masterId === me.id);
+      }
+      drawCategories();
+      await updateKPI();
+    }
+
+    // ========= CREATE SERVICE
+    function renderCreateServiceTab(){
+      // LEFT: форма (сначала выбор категории → затем поля)
+      q("#leftCol").innerHTML = `
+        <div class="card-title"><h2>Создать услугу</h2></div>
+        <div class="form" id="svcForm">
+          <div>
+            <label for="svcCat">Категория</label>
+            <select id="svcCat" class="input">
+              <option value="">— выберите категорию —</option>
+              ${categories.map(c=> `<option value="${c.id}">${c.name}</option>`).join("")}
+            </select>
+            <div id="svcCatErr" class="error"></div>
+          </div>
+
+          <div>
+            <label for="svcTitle">Название услуги</label>
+            <input id="svcTitle" class="input" placeholder="Например: Установка смесителя"/>
+            <div id="svcTitleErr" class="error"></div>
+          </div>
+
+          <div class="row">
+            <div style="flex:1">
+              <label for="svcPrice">Цена, ₽</label>
+              <input id="svcPrice" class="input" type="number" min="0" step="1" placeholder="0"/>
+              <div id="svcPriceErr" class="error"></div>
+            </div>
+          </div>
+
+          <div>
+            <label for="svcDesc">Описание</label>
+            <textarea id="svcDesc" class="input" rows="6"
+              placeholder="Что входит в услугу, условия, регион, исключения и т.д."></textarea>
+            <div id="svcDescErr" class="error"></div>
+          </div>
+
+          <p class="help">Справа — предпросмотр карточки с вашими текущими данными.</p>
+        </div>
+      `;
+
+      // RIGHT: предпросмотр + создать
+      q("#rightCol").innerHTML = `
+        <div class="preview-card">
+          <div class="preview-head">
+            <h2>Предпросмотр</h2>
+            <button class="btn" id="createSvcBtn">Создать</button>
+          </div>
+          <div id="preview" class="service-card">
+            <h3>(название)</h3>
+            <p>(описание)</p>
+            <p class="price"><strong>0.00 ₽</strong></p>
+            <p class="help">(категория)</p>
+          </div>
+          <div id="createMsg" class="ok"></div>
+        </div>
+      `;
+
+      ['svcCat','svcTitle','svcPrice','svcDesc'].forEach(id=>{
+        q("#"+id).addEventListener('input', drawPreview);
+      });
+      drawPreview();
+
+      q("#createSvcBtn").onclick = onCreateService;
+    }
+
+    function drawPreview(){
+      const catId = Number(q("#svcCat").value||0);
+      const title = q("#svcTitle").value.trim();
+      const price = Number(q("#svcPrice").value||0);
+      const desc  = q("#svcDesc").value.trim();
+
+      const cat = categories.find(c=> c.id===catId);
+      q("#preview").innerHTML = `
+        <h3>${title || "(название)"}</h3>
+        <p>${desc || "(описание)"}</p>
+        <p class="price"><strong>${isFinite(price) ? price.toFixed(2) : "0.00"} ₽</strong></p>
+        <p class="help">${cat ? cat.name : "(категория)"}</p>
+      `;
+    }
+
+    async function onCreateService(){
+      ["svcCatErr","svcTitleErr","svcPriceErr","svcDescErr","createMsg"].forEach(id=> q("#"+id).textContent="");
+
+      const categoryId = Number(q("#svcCat").value||0);
+      const title = q("#svcTitle").value.trim();
+      const price = Number(q("#svcPrice").value||0);
+      const description = q("#svcDesc").value.trim();
+
+      let ok = true;
+      if(!categoryId){ q("#svcCatErr").textContent="Выберите категорию"; ok = false; }
+      if(!title){ q("#svcTitleErr").textContent="Введите название"; ok = false; }
+      if(!isFinite(price) || price < 0){ q("#svcPriceErr").textContent="Укажите корректную цену"; ok = false; }
+      if(!description){ q("#svcDescErr").textContent="Добавьте описание"; ok = false; }
+      if(!ok) return;
+
+      const duplicate = servicesAll.some(s => norm(s.title)===norm(title) && String(s.categoryId)===String(categoryId));
+      if(duplicate){
+        q("#svcTitleErr").textContent = "Услуга с таким названием уже существует в этой категории.";
+        return;
+      }
+
+      await API.services.create({ title, price, categoryId, description });
+      servicesAll = await API.services.list();
+      myServices = servicesAll.filter(s=> s.masterId === me.id);
+      await updateKPI();
+
+      q("#createMsg").textContent = "Услуга создана ✅";
+      q("#svcTitle").value=""; q("#svcPrice").value=""; q("#svcDesc").value="";
+      drawPreview();
+    }
+
+    // ========= MY SERVICES
+    function renderMyServicesTab(){
+      q("#leftCol").innerHTML = `
+        <div class="card-title"><h2>Мои услуги</h2></div>
+        <p class="help">Здесь только созданные вами услуги. Редактируйте и удаляйте при необходимости.</p>
+      `;
+      drawMyServices();
+    }
+
+    function drawMyServices(){
+      const box = q("#rightCol");
+      if(!myServices.length){
+        box.innerHTML = `<div class="empty">У вас ещё нет услуг. Перейдите во вкладку «Создать услугу».</div>`;
+        return;
+      }
+      box.innerHTML = `<div class="card-grid" id="svcGrid"></div>`;
+      const grid = q("#svcGrid");
+      myServices.forEach(s=>{
+        const cat = categories.find(c=>c.id===s.categoryId);
+        const d = document.createElement("div");
+        d.className = "service-card";
+        d.innerHTML = `
+          <h3>${s.title}</h3>
+          <p>${s.description||""}</p>
+          <p class="price"><strong>${(s.price||0).toFixed(2)} ₽</strong></p>
+          <p class="help">${cat?cat.name:"Без категории"}</p>
+          <div class="row">
+            <button class="btn-secondary" data-edit="${s.id}">Изменить</button>
+            <button class="btn-danger" data-del="${s.id}">Удалить</button>
+          </div>`;
+        d.querySelector('[data-edit]').onclick = async ()=>{
+          const title = prompt("Название", s.title) ?? s.title;
+          const price = Number(prompt("Цена", s.price) ?? s.price);
+          const description = (prompt("Описание", s.description || "") ?? s.description) || "";
+          if(servicesAll.some(x => x.id!==s.id && norm(x.title)===norm(title) && String(x.categoryId)===String(s.categoryId))){
+            alert("Услуга с таким названием уже существует в этой категории.");
+            return;
+          }
+          await API.services.update(s.id, {title, price, description});
+          await reloadServices();
+        };
+        d.querySelector('[data-del]').onclick = async ()=>{
+          if(!confirm("Удалить услугу?")) return;
+          await API.services.delete(s.id);
+          await reloadServices();
+        };
+        grid.append(d);
+      });
+    }
+
+    async function reloadServices(){
+      servicesAll = await API.services.list();
+      myServices = servicesAll.filter(s=> s.masterId === me.id);
+      drawMyServices();
+      await updateKPI();
+    }
+
+// ---------- ORDERS (замена блока) ----------
+function renderOrdersTab(){
+  q("#leftCol").innerHTML = `
+    <div class="card-title"><h2>Мои заказы</h2></div>
+    <div class="help">Нажмите «Подробнее», чтобы увидеть данные клиента, комментарии и доступные действия.</div>
+  `;
+  drawOrders();
+}
+
+async function reloadOrders(){
+  myOrders = await API.orders.list();
+  drawOrders();
+  await updateKPI();
+}
+
+function drawOrders(){
+  const box = q("#rightCol");
+  if(!myOrders.length){
+    box.innerHTML = `<div class="empty">Заказов пока нет.</div>`;
+    return;
+  }
+  box.innerHTML = `<div class="card-grid" id="ordGrid"></div>`;
+  const grid = q("#ordGrid");
+
+  myOrders
+    .slice()
+    .sort((a,b)=> new Date(b.status_date||b.desired_datetime||0) - new Date(a.status_date||a.desired_datetime||0))
+    .forEach(o=>{
+      const s = servicesAll.find(x=>x.id===o.serviceId) || {};
+      const when = o.desired_datetime ? new Date(o.desired_datetime) : null;
+      const whenStr = when ? new Intl.DateTimeFormat('ru-RU',{dateStyle:'long', timeStyle:'short'}).format(when) : '—';
+
+      const el = document.createElement("div");
+      el.className="card";
+      el.innerHTML = `
+        <div class="info">
+          <h3>${s.title || 'Услуга'} — <span class="help">${Number(s.price||0).toFixed(2)} ₽</span></h3>
+          <p class="help">${whenStr}</p>
+          <p>Статус: <strong>${statusLabel(o.status)}</strong></p>
+          <div class="row">
+            <button class="btn" data-more="${o.id}">Подробнее</button>
+            <button class="btn-secondary" data-accept="${o.id}">Принять</button>
+            <button class="btn-danger" data-reject="${o.id}">Отклонить</button>
+            <button class="btn-secondary" data-done="${o.id}">Выполнено</button>
+            <button class="btn-secondary" data-cancel="${o.id}">Отменить</button>
+          </div>
+        </div>
+      `;
+
+      const toggleButtons = (st)=>{
+        el.querySelectorAll("button").forEach(b=> b.disabled = true);
+        el.querySelector(`[data-more]`).disabled = false;
+        if(st==="NEW"){
+          el.querySelector('[data-accept]').disabled = false;
+          el.querySelector('[data-reject]').disabled = false;
+        } else if (st==="ACCEPTED"){
+          el.querySelector('[data-done]').disabled = false;
+          el.querySelector('[data-cancel]').disabled = false;
+        }
+      };
+      toggleButtons(o.status);
+
+      el.querySelector('[data-more]').onclick   = ()=> showOrderDetails(o.id);
+      el.querySelector('[data-accept]').onclick = ()=> updateOrder(o.id,"ACCEPTED");
+      el.querySelector('[data-reject]').onclick = ()=>{ const r=prompt("Причина отказа:")||""; updateOrder(o.id,"REJECTED",r); };
+      el.querySelector('[data-done]').onclick   = ()=> updateOrder(o.id,"DONE");
+      el.querySelector('[data-cancel]').onclick = ()=> updateOrder(o.id,"CANCELLED");
+
+      grid.append(el);
+    });
+}
+
+async function updateOrder(id, st, reason=""){
+  try{
+    await API.orders.setStatus(id, st, reason);
+    await reloadOrders();
+    // если модалка открыта — обновим её
+    const mb = document.getElementById('orderBackdrop');
+    if(mb && mb.style.display==='flex'){ await showOrderDetails(id); }
+  }catch(_){
+    alert("Нельзя выполнить переход статуса.");
+  }
+}
+
+async function showOrderDetails(id){
+  let d;
+  try{
+    d = await API.orders.get(id); // /api/orders/:id — сервер отдаёт все связи
+  }catch(e){
+    alert("Не удалось загрузить заказ");
+    return;
+  }
+
+  const svc = d.service || {};
+  const when = d.desired_datetime ? new Date(d.desired_datetime) : null;
+  const whenStr = when ? new Intl.DateTimeFormat('ru-RU',{dateStyle:'long', timeStyle:'short'}).format(when) : '—';
+
+  q('#ordTitle').textContent      = `Заказ #${d.id}`;
+  q('#ordService').textContent    = svc.title || `Услуга #${d.serviceId}`;
+  q('#ordPrice').textContent      = `${Number(svc.price||0).toFixed(2)} ₽`;
+  q('#ordWhen').textContent       = whenStr;
+  q('#ordStatus').textContent     = statusLabel(d.status);
+  q('#ordClient').textContent     = d.client ? (d.client.name || `Клиент #${d.client.id}`) : '—';
+  q('#ordClientEmail').textContent= d.client ? (d.client.email || '—') : '—';
+  q('#ordComment').textContent    = d.comment ? d.comment : '—';
+
+  if(d.status==='REJECTED' && d.rejectionReason){
+    q('#ordReasonBox').style.display='grid';
+    q('#ordReason').textContent = d.rejectionReason;
+  }else{
+    q('#ordReasonBox').style.display='none';
+    q('#ordReason').textContent = '';
+  }
+
+  // Кнопки действий
+  const actions = q('#ordActions'); actions.innerHTML='';
+  const addBtn = (text, cls, cb)=>{
+    const b=document.createElement('button'); b.className=cls; b.textContent=text; b.onclick=cb; actions.append(b);
+  };
+  if(d.status==='NEW'){
+    addBtn('Принять','btn-secondary', ()=> updateOrder(d.id,'ACCEPTED'));
+    addBtn('Отклонить','btn-danger', ()=>{ const r=prompt('Причина отказа:')||''; updateOrder(d.id,'REJECTED',r); });
+  }else if(d.status==='ACCEPTED'){
+    addBtn('Выполнено','btn-secondary', ()=> updateOrder(d.id,'DONE'));
+    addBtn('Отменить','btn-secondary', ()=> updateOrder(d.id,'CANCELLED'));
+  }
+  addBtn('Закрыть','btn-secondary', ()=> document.getElementById('orderBackdrop').style.display='none');
+
+  // Показать модалку
+  const mb = document.getElementById('orderBackdrop');
+  mb.style.display='flex';
+}
+
+    // ========= SCHEDULE (расписание)
+    function renderScheduleTab(){
+      q("#leftCol").innerHTML = `
+        <div class="card-title">
+          <h2>Недельное расписание</h2>
+          <span class="help">Укажите рабочие интервалы для каждого дня недели</span>
+        </div>
+        <div id="weekBox"></div>
+        <div class="save-bar">
+          <div>
+            <label>Длительность слота:</label>
+            <select id="slotMinutes" class="input" style="width:140px">
+              ${[15,20,30,45,60,90,120].map(x=> `<option value="${x}">${x} мин</option>`).join('')}
+            </select>
+            <span class="hint">Клиенты смогут выбирать такие интервалы</span>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <button class="btn" id="saveSchedule">Сохранить</button>
+            <span id="saveMsg" class="ok"></span>
+          </div>
+        </div>
+      `;
+
+      q("#rightCol").innerHTML = `
+        <div class="card-title">
+          <h2>Исключения по датам</h2>
+          <span class="help">Переопределите рабочие интервалы для конкретного дня (праздники, выходные, сверхурочная работа)</span>
+        </div>
+        <div class="form">
+          <div class="row">
+            <div style="flex:1">
+              <label for="exDate">Дата</label>
+              <input id="exDate" type="date" class="input"/>
+            </div>
+            <div class="ex-ctrls">
+              <button class="btn-secondary" id="exAdd">Добавить интервал</button>
+              <button class="btn-danger" id="exClear">Сделать выходным</button>
+              <button class="btn-secondary" id="exCopyFromDOW">Скопировать из недели</button>
+              <button class="btn-secondary" id="exRemove">Удалить исключение</button>
+            </div>
+          </div>
+          <div id="exList" class="exceptions"></div>
+          <div id="exErr" class="err"></div>
+        </div>
+      `;
+
+      // slot minutes
+      q("#slotMinutes").value = String(availability.slotMinutes || 30);
+
+      // неделя
+      drawWeek();
+
+      // исключения
+      const todayStr = new Date().toISOString().slice(0,10);
+      q("#exDate").value = todayStr;
+      drawExceptionEditor();
+
+      // events
+      q("#saveSchedule").onclick = saveSchedule;
+      q("#slotMinutes").onchange = ()=> availability.slotMinutes = Number(q("#slotMinutes").value||30);
+      q("#exDate").onchange = drawExceptionEditor;
+      q("#exAdd").onclick = ()=> exAddRange();
+      q("#exClear").onclick = ()=> exMakeDayOff();
+      q("#exCopyFromDOW").onclick = ()=> exCopyFromDow();
+      q("#exRemove").onclick = ()=> exRemoveDay();
+    }
+
+    function normalizeAvailability(){
+      availability = availability || {};
+      if(!Number.isFinite(availability.slotMinutes)) availability.slotMinutes = 30;
+      if(!availability.weekTemplate) availability.weekTemplate = {};
+      for(const d of [0,1,2,3,4,5,6]){
+        if(!Array.isArray(availability.weekTemplate[d])) availability.weekTemplate[d] = [];
+      }
+      if(!availability.exceptions) availability.exceptions = {};
+    }
+
+    // ——— WEEK EDITOR ———
+    function drawWeek(){
+      const box = q("#weekBox");
+      weekErrors = {};
+      box.innerHTML = DOW.map(({i,t})=>{
+          const arr = availability.weekTemplate[i] || [];
+          const isOn = arr.length>0;
+          return `
+              <div class="day-row" data-d="${i}">
+                  <div class="day-head">
+                      <span class="day-title">${t}</span>
+                      <label class="day-toggle">
+                          <input type="checkbox" class="day-on" ${isOn?'checked':''}/>
+                          <span>${isOn?'Рабочий день':'Выходной'}</span>
+                      </label>
+                  </div>
+                  <div class="intervals">
+                      ${arr.map(([from,to],idx)=> intRowHTML(from,to, idx)).join('')}
+                  </div>
+                  <div class="int-add">
+                      <button class="btn-secondary add-int">Добавить интервал</button>
+                      <span class="err" data-err></span>
+                  </div>
+              </div>
+          `;
+      }).join('');
+
+      // bind events
+      qa(".day-row").forEach(row=>{
+        const d = Number(row.dataset.d);
+
+        // toggle
+        row.querySelector(".day-on").onchange = (e)=>{
+          if(e.target.checked){
+            if(availability.weekTemplate[d].length===0){
+              availability.weekTemplate[d] = [["09:00","18:00"]];
+            }
+          }else{
+            availability.weekTemplate[d] = [];
+          }
+          drawWeek();
+        };
+
+        // add interval
+        row.querySelector(".add-int").onclick = ()=>{
+          availability.weekTemplate[d].push(["09:00","18:00"]);
+          drawWeek();
+        };
+
+        // existing intervals
+        row.querySelectorAll(".int-row").forEach(intEl=>{
+          const idx = Number(intEl.dataset.idx);
+          const fromEl = intEl.querySelector('input[data-k="from"]');
+          const toEl   = intEl.querySelector('input[data-k="to"]');
+          const delBtn = intEl.querySelector('.btn-danger');
+
+          fromEl.onchange = ()=>{ availability.weekTemplate[d][idx][0] = fromEl.value; validateDay(d); };
+          toEl.onchange   = ()=>{ availability.weekTemplate[d][idx][1] = toEl.value; validateDay(d); };
+          delBtn.onclick  = ()=>{ availability.weekTemplate[d].splice(idx,1); drawWeek(); };
+        });
+
+        validateDay(d);
+      });
+    }
+
+    function intRowHTML(from="09:00", to="18:00", idx=0){
+    return `
+        <div class="int-row" data-idx="${idx}">
+            <input type="time" step="300" value="${from}" class="input" style="width:100px" data-k="from"/>
+            <span>—</span>
+            <input type="time" step="300" value="${to}" class="input" style="width:100px" data-k="to"/>
+            <button class="btn-danger" style="padding:6px 10px;" title="Удалить">×</button>
+        </div>
+    `;
+}
+
+    function validateDay(d){
+      const arr = [...(availability.weekTemplate[d]||[])];
+      const errEl = q(`.day-row[data-d="${d}"] [data-err]`);
+      errEl.textContent = "";
+      if(arr.length===0){ delete weekErrors[d]; return true; }
+      // нормализуем: сортировка и проверка на пересечения
+      const toMin = s => {
+        const [h,m] = (s||"").split(':').map(Number);
+        return (h*60 + (m||0));
+      };
+      const lines = arr.map(([f,t])=>({f:toMin(f),t:toMin(t), s:[f,t]}))
+                       .filter(x=> Number.isFinite(x.f) && Number.isFinite(x.t) && x.f < x.t)
+                       .sort((a,b)=> a.f-b.f);
+      // проверка на перехлёсты
+      for(let i=1;i<lines.length;i++){
+        if(lines[i].f < lines[i-1].t){
+          errEl.textContent = "Интервалы пересекаются или заданы некорректно.";
+          weekErrors[d] = true;
+          return false;
+        }
+      }
+      delete weekErrors[d];
+      return true;
+    }
+
+    // ——— EXCEPTIONS EDITOR ———
+    function drawExceptionEditor(){
+      const date = q("#exDate").value;
+      exErrors = {};
+      const box = q("#exList");
+      const list = (availability.exceptions[date]||[]);
+      if(list.length===0){
+        box.innerHTML = `
+          <div class="ex-row">
+            <div class="hint">На эту дату исключений нет. Будет применено недельное расписание.</div>
+          </div>
+        `;
+      }else{
+        box.innerHTML = `
+          <div class="ex-row">
+            <div class="ex-head">
+              <strong>Интервалы на ${date}</strong>
+              <span class="hint">Эти интервалы полностью заменяют недельное расписание</span>
+            </div>
+            <div id="exIntervals"></div>
+          </div>
+        `;
+        const wrap = q("#exIntervals");
+        wrap.innerHTML = list.map(([f,t],i)=> `
+          <div class="ex-int" data-idx="${i}">
+            <input type="time" step="300" value="${f}" class="input" data-k="from"/>
+            <span>—</span>
+            <input type="time" step="300" value="${t}" class="input" data-k="to"/>
+            <button class="btn-danger">×</button>
+          </div>
+        `).join('');
+
+        wrap.querySelectorAll(".ex-int").forEach(node=>{
+          const idx = Number(node.dataset.idx);
+          const f = node.querySelector('input[data-k="from"]');
+          const t = node.querySelector('input[data-k="to"]');
+          const del = node.querySelector('.btn-danger');
+          f.onchange = ()=>{ availability.exceptions[date][idx][0] = f.value; validateEx(date); };
+          t.onchange = ()=>{ availability.exceptions[date][idx][1] = t.value; validateEx(date); };
+          del.onclick  = ()=>{ availability.exceptions[date].splice(idx,1); if(availability.exceptions[date].length===0) delete availability.exceptions[date]; drawExceptionEditor(); };
+        });
+
+        validateEx(date);
+      }
+      q("#exErr").textContent = "";
+    }
+
+    function exAddRange(){
+      const date = q("#exDate").value;
+      availability.exceptions[date] ||= [];
+      availability.exceptions[date].push(["09:00","18:00"]);
+      drawExceptionEditor();
+    }
+    function exMakeDayOff(){
+      const date = q("#exDate").value;
+      availability.exceptions[date] = []; // пустой массив = все слоты сняты (выходной)
+      drawExceptionEditor();
+    }
+    function exCopyFromDow(){
+      const date = q("#exDate").value;
+      const dow = new Date(date+"T00:00:00").getDay();
+      const src = availability.weekTemplate[dow] || [];
+      availability.exceptions[date] = JSON.parse(JSON.stringify(src));
+      drawExceptionEditor();
+    }
+    function exRemoveDay(){
+      const date = q("#exDate").value;
+      delete availability.exceptions[date];
+      drawExceptionEditor();
+    }
+
+    function validateEx(date){
+      const arr = [...(availability.exceptions[date]||[])];
+      const errEl = q("#exErr");
+      errEl.textContent = "";
+      if(arr.length===0){ delete exErrors[date]; return true; }
+      const toMin = s => {
+        const [h,m] = (s||"").split(':').map(Number);
+        return (h*60 + (m||0));
+      };
+      const lines = arr.map(([f,t])=>({f:toMin(f),t:toMin(t)}))
+                       .filter(x=> Number.isFinite(x.f) && Number.isFinite(x.t) && x.f < x.t)
+                       .sort((a,b)=> a.f-b.f);
+      for(let i=1;i<lines.length;i++){
+        if(lines[i].f < lines[i-1].t){
+          errEl.textContent = "Интервалы пересекаются или заданы некорректно.";
+          exErrors[date] = true;
+          return false;
+        }
+      }
+      delete exErrors[date];
+      return true;
+    }
+
+    async function saveSchedule(){
+      // валидация: нет ошибок и хотя бы один рабочий день или исключение
+      const weekHasAny = Object.values(availability.weekTemplate||{}).some(a=> (a||[]).length>0);
+      const exHas = Object.keys(availability.exceptions||{}).length>0;
+      const hasWeekErr = Object.keys(weekErrors).length>0;
+      const hasExErr = Object.keys(exErrors).length>0;
+
+      const msg = q("#saveMsg");
+      msg.className = ""; msg.textContent = "";
+
+      if(hasWeekErr || hasExErr){
+        msg.className = "warn";
+        msg.textContent = "Исправьте ошибки интервалов.";
+        return;
+      }
+      if(!weekHasAny && !exHas){
+        msg.className = "warn";
+        msg.textContent = "Нет рабочих интервалов — клиенты не смогут записаться.";
+        // всё равно позволим сохранить «полный выходной», если это осознанно
+      }
+
+      try{
+        normalizeAvailability();
+        await API.availability.set(me.id, availability);
+        msg.className = "ok";
+        msg.textContent = "Сохранено ✅";
+        clearTimeout(saveMsgTimer);
+        saveMsgTimer = setTimeout(()=> { msg.textContent = ""; }, 2500);
+      }catch(e){
+        msg.className = "warn";
+        msg.textContent = "Не удалось сохранить расписание.";
+      }
+    }
+  </script>
+</body>
+</html>

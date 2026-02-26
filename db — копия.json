@@ -1,0 +1,896 @@
+{
+  "counters": {
+    "users": 9,
+    "categories": 7,
+    "services": 12,
+    "orders": 48
+  },
+  "users": [
+    {
+      "id": 1,
+      "role": "master",
+      "name": "Иван Мастер",
+      "email": "master@agrus.test",
+      "passSalt": "303882963a54872f8a64a3bb2cdbe578",
+      "passHash": "58a4092e9c038973b2239470629a38285db7f7576b98bcc750be0bf1c2c8062688c69e037a8acb4e3792e17e12da0d66cd081e854154808cf712c51f556fc913"
+    },
+    {
+      "id": 2,
+      "role": "client",
+      "name": "Пётр Клиент",
+      "email": "client@agrus.test",
+      "passSalt": "75e26c6c664cfd45a598dba0e85dbaa8",
+      "passHash": "40ca891584d2d1ee6113edb904b87866048808bc4c6e6819ef6d317410508d9635e34503b4d91601199108215f2cef5fd6577e17fa498245c0d0142f14e98ffa"
+    },
+    {
+      "id": 3,
+      "role": "client",
+      "name": "Жилкин Дмитрий Анатольевич",
+      "email": "zhilkin142510@gmail.com",
+      "passSalt": "69c23e337dd4daf737a8f005d3f0287a",
+      "passHash": "28e7e6d9b22705ea12b9ab0e6d0df29f9f33ebe7a5cda2f3cddb5f510dcbd7021de962fb2e5498f2d864fbd727b210b74e064ea4daf3205be3ddaffb69d98155"
+    },
+    {
+      "id": 4,
+      "role": "master",
+      "name": "Иван",
+      "email": "master@mail.ru",
+      "passSalt": "3e34144806244220884c9d3e0cded5e1",
+      "passHash": "0b4b4fcc4ab6377b2b0cd64bebc1a0aa46ca1a6305090396f49c0d558b970f54716bd4f86589422c3a6c2a15c2f666b7e7a4427c32ebe25b367b8bf5bfc72809"
+    },
+    {
+      "id": 5,
+      "role": "client",
+      "name": "Иван",
+      "email": "client@mail.ru",
+      "passSalt": "efa48020cdf298d8c0683d130e497d61",
+      "passHash": "24c260c93aeb3f33267a91bb1bbda424e731c6431715b171749713216610c104535d2641e5e6d129d80eb7a35876687e51b8b81a40f68a9e25048cde23c32c79"
+    },
+    {
+      "id": 6,
+      "role": "client",
+      "name": "Дмитрий",
+      "email": "client2@mail.ru",
+      "passSalt": "240d353f244b547d3604dfe8c4c069a0",
+      "passHash": "4dfc18726cfe947b9a32c324ddef76f20e5244a1dc652b43ddbaa1150b064742295ebb452188568cecc6ef397ba8b395093ef21235397280989d8baf77502507"
+    },
+    {
+      "id": 7,
+      "role": "client",
+      "name": "Елена",
+      "email": "client1@mail.ru",
+      "passSalt": "a6348900a070f9d4d8c050229bba86c1",
+      "passHash": "d4cad620c2e6aba89245a4c034d5284c1c71d0105780b1f3bf39594de142f2f62c3e9807be0badde5d7a8c9589042defa9f680926d4170db9d52bc4fa4074c08"
+    },
+    {
+      "id": 8,
+      "role": "client",
+      "name": "s",
+      "email": "al@mail.ru",
+      "passSalt": "7a77fa5bb28df80fb4f82211d0057197",
+      "passHash": "dcabe2bf9897d900477ef40a277a3d1a526b4e4312ae620cb251a47f572453cd53e6d2debde31cf08c32ecd669188340947fcf76b545379f1cfdf2c18b5e1b30"
+    },
+    {
+      "id": 9,
+      "role": "master",
+      "name": "Алексей",
+      "email": "al1@mail.ru",
+      "passSalt": "9f8722a3a3546bd35d98608b064326e4",
+      "passHash": "7b23dfe37c0ef15e136bf313eb98e200a3d11b8a126d635700c84381f86c04798bd50a25c7aaa2b14df4fa4e61ca37434c689f98949236f1e777d86e9303a000"
+    }
+  ],
+  "categories": [
+    {
+      "id": 1,
+      "name": "Ремонт техники"
+    },
+    {
+      "id": 2,
+      "name": "Уборка и клининг"
+    },
+    {
+      "id": 3,
+      "name": "Сантехника"
+    },
+    {
+      "id": 4,
+      "name": "Электрика"
+    },
+    {
+      "id": 5,
+      "name": "Сборка мебели"
+    },
+    {
+      "id": 7,
+      "name": "Ремонт ПК"
+    }
+  ],
+  "services": [
+    {
+      "id": 1,
+      "masterId": 1,
+      "categoryId": 1,
+      "title": "Ремонт стиральной машины",
+      "description": "Диагностика и ремонт на дому.",
+      "price": 2500
+    },
+    {
+      "id": 2,
+      "masterId": 1,
+      "categoryId": 2,
+      "title": "Генеральная уборка 1к квартиры",
+      "description": "Инвентарь включён.",
+      "price": 3500
+    },
+    {
+      "id": 3,
+      "masterId": 4,
+      "categoryId": 1,
+      "title": "Починка крана",
+      "description": "Починка, замена, обслуживание кранов любых видов и размеров",
+      "price": 500
+    },
+    {
+      "id": 4,
+      "masterId": 4,
+      "categoryId": 3,
+      "title": "Установка смесителя",
+      "description": "Снятие старого и монтаж нового смесителя. Подключение шлангов, проверка герметичности.",
+      "price": 1200
+    },
+    {
+      "id": 5,
+      "masterId": 1,
+      "categoryId": 3,
+      "title": "Чистка сифона и устранение засора",
+      "description": "Бережная прочистка сифона и труб без химии. Даём рекомендации по профилактике.",
+      "price": 900
+    },
+    {
+      "id": 6,
+      "masterId": 1,
+      "categoryId": 4,
+      "title": "Замена розетки",
+      "description": "Диагностика, безопасная замена, проверка контактов. Материалы могут оплачиватьcя отдельно.",
+      "price": 700
+    },
+    {
+      "id": 7,
+      "masterId": 4,
+      "categoryId": 4,
+      "title": "Подключение люстры",
+      "description": "Сборка, монтаж и подключение люстры до 12 кг, настройка выключателя.",
+      "price": 1500
+    },
+    {
+      "id": 8,
+      "masterId": 1,
+      "categoryId": 5,
+      "title": "Сборка кухонного стола",
+      "description": "Сборка по инструкции, проверка устойчивости и фиксации крепежа.",
+      "price": 1600
+    },
+    {
+      "id": 9,
+      "masterId": 4,
+      "categoryId": 5,
+      "title": "Сборка шкафа-купе",
+      "description": "Профессиональная сборка шкафов-купе, регулировка дверей, навеска полок.",
+      "price": 4500
+    },
+    {
+      "id": 10,
+      "masterId": 1,
+      "categoryId": 2,
+      "title": "Поддерживающая уборка",
+      "description": "Лёгкая уборка: пыль, полы, санузел. Свои чистящие средства.",
+      "price": 1500
+    },
+    {
+      "id": 11,
+      "masterId": 4,
+      "categoryId": 1,
+      "title": "Установка смесителя",
+      "description": "Установка",
+      "price": 1000
+    },
+    {
+      "id": 12,
+      "masterId": 9,
+      "categoryId": 7,
+      "title": "Ремонт ПК на дому",
+      "description": "Всё починю",
+      "price": 3000
+    }
+  ],
+  "orders": [
+    {
+      "id": 1,
+      "serviceId": 1,
+      "masterId": 1,
+      "clientId": 2,
+      "comment": "Сломался насос",
+      "desired_datetime": "2025-09-09T10:00:00.000Z",
+      "status": "NEW",
+      "status_date": "2025-09-08T12:00:00.000Z"
+    },
+    {
+      "id": 2,
+      "serviceId": 1,
+      "masterId": 1,
+      "clientId": 6,
+      "comment": "",
+      "desired_datetime": "2025-09-08T16:13:37.796Z",
+      "status": "NEW",
+      "status_date": "2025-09-08T16:13:37.796Z"
+    },
+    {
+      "id": 3,
+      "serviceId": 1,
+      "masterId": 1,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-22T13:20:04.069Z",
+      "status": "NEW",
+      "status_date": "2025-09-22T13:20:04.069Z"
+    },
+    {
+      "id": 4,
+      "serviceId": 2,
+      "masterId": 1,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-22T13:20:26.040Z",
+      "status": "NEW",
+      "status_date": "2025-09-22T13:20:26.040Z"
+    },
+    {
+      "id": 5,
+      "serviceId": 3,
+      "masterId": 4,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-22T13:20:27.087Z",
+      "status": "REJECTED",
+      "status_date": "2025-09-22T16:50:13.391Z",
+      "rejectionReason": ""
+    },
+    {
+      "id": 6,
+      "serviceId": 4,
+      "masterId": 4,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-22T13:20:27.825Z",
+      "status": "DONE",
+      "status_date": "2025-09-23T01:05:55.379Z"
+    },
+    {
+      "id": 7,
+      "serviceId": 5,
+      "masterId": 1,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-22T13:20:29.098Z",
+      "status": "NEW",
+      "status_date": "2025-09-22T13:20:29.098Z"
+    },
+    {
+      "id": 8,
+      "serviceId": 6,
+      "masterId": 1,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-22T13:20:30.052Z",
+      "status": "NEW",
+      "status_date": "2025-09-22T13:20:30.052Z"
+    },
+    {
+      "id": 9,
+      "serviceId": 7,
+      "masterId": 4,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-22T13:20:31.109Z",
+      "status": "DONE",
+      "status_date": "2025-09-23T01:05:55.597Z"
+    },
+    {
+      "id": 10,
+      "serviceId": 8,
+      "masterId": 1,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-22T13:20:31.822Z",
+      "status": "NEW",
+      "status_date": "2025-09-22T13:20:31.822Z"
+    },
+    {
+      "id": 11,
+      "serviceId": 9,
+      "masterId": 4,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-22T13:20:32.829Z",
+      "status": "DONE",
+      "status_date": "2025-09-23T01:05:55.790Z"
+    },
+    {
+      "id": 12,
+      "serviceId": 10,
+      "masterId": 1,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-22T13:20:33.479Z",
+      "status": "NEW",
+      "status_date": "2025-09-22T13:20:33.479Z"
+    },
+    {
+      "id": 13,
+      "serviceId": 11,
+      "masterId": 4,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-22T13:20:35.111Z",
+      "status": "DONE",
+      "status_date": "2025-09-23T01:05:56.054Z"
+    },
+    {
+      "id": 14,
+      "serviceId": 1,
+      "masterId": 1,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-22T14:57:12.375Z",
+      "status": "NEW",
+      "status_date": "2025-09-22T14:57:12.375Z"
+    },
+    {
+      "id": 15,
+      "serviceId": 1,
+      "masterId": 4,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-22T14:59:13.424Z",
+      "status": "DONE",
+      "status_date": "2025-09-23T01:05:56.603Z"
+    },
+    {
+      "id": 16,
+      "serviceId": 1,
+      "masterId": 4,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-02T03:00:00.000Z",
+      "status": "DONE",
+      "status_date": "2025-09-23T01:05:56.981Z"
+    },
+    {
+      "id": 17,
+      "serviceId": 1,
+      "masterId": 4,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-01T01:00:00.000Z",
+      "status": "DONE",
+      "status_date": "2025-09-23T01:05:57.351Z"
+    },
+    {
+      "id": 18,
+      "serviceId": 1,
+      "masterId": 4,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-01T01:00:00.000Z",
+      "status": "DONE",
+      "status_date": "2025-09-23T01:05:57.836Z"
+    },
+    {
+      "id": 19,
+      "serviceId": 1,
+      "masterId": 4,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-01T01:00:00.000Z",
+      "status": "CANCELLED",
+      "status_date": "2025-09-23T01:05:58.901Z"
+    },
+    {
+      "id": 20,
+      "serviceId": 1,
+      "masterId": 4,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-01T01:00:00.000Z",
+      "status": "CANCELLED",
+      "status_date": "2025-09-23T01:06:13.860Z"
+    },
+    {
+      "id": 21,
+      "serviceId": 1,
+      "masterId": 4,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-01T01:30:00.000Z",
+      "status": "ACCEPTED",
+      "status_date": "2025-09-23T01:06:12.247Z"
+    },
+    {
+      "id": 22,
+      "serviceId": 1,
+      "masterId": 4,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-01T09:00:00.000Z",
+      "status": "NEW",
+      "status_date": "2025-09-22T16:28:21.901Z"
+    },
+    {
+      "id": 23,
+      "serviceId": 1,
+      "masterId": 4,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-01T09:30:00.000Z",
+      "status": "NEW",
+      "status_date": "2025-09-22T16:47:11.835Z"
+    },
+    {
+      "id": 24,
+      "serviceId": 1,
+      "masterId": 4,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-20T10:00:00.000Z",
+      "status": "NEW",
+      "status_date": "2025-09-22T16:47:37.870Z"
+    },
+    {
+      "id": 25,
+      "serviceId": 2,
+      "masterId": 1,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-01T10:00:00.000Z",
+      "status": "NEW",
+      "status_date": "2025-09-22T16:47:50.580Z"
+    },
+    {
+      "id": 26,
+      "serviceId": 1,
+      "masterId": 1,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-01T10:30:00.000Z",
+      "status": "NEW",
+      "status_date": "2025-09-22T16:47:54.399Z"
+    },
+    {
+      "id": 27,
+      "serviceId": 1,
+      "masterId": 4,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-01T11:00:00.000Z",
+      "status": "NEW",
+      "status_date": "2025-09-22T16:47:57.955Z"
+    },
+    {
+      "id": 28,
+      "serviceId": 3,
+      "masterId": 4,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-01T11:30:00.000Z",
+      "status": "NEW",
+      "status_date": "2025-09-22T16:48:00.301Z"
+    },
+    {
+      "id": 29,
+      "serviceId": 1,
+      "masterId": 1,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-01T12:00:00.000Z",
+      "status": "NEW",
+      "status_date": "2025-09-22T16:48:03.686Z"
+    },
+    {
+      "id": 30,
+      "serviceId": 1,
+      "masterId": 1,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-01T12:30:00.000Z",
+      "status": "NEW",
+      "status_date": "2025-09-22T16:48:10.127Z"
+    },
+    {
+      "id": 31,
+      "serviceId": 1,
+      "masterId": 1,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-01T14:00:00.000Z",
+      "status": "NEW",
+      "status_date": "2025-09-22T16:48:13.363Z"
+    },
+    {
+      "id": 32,
+      "serviceId": 1,
+      "masterId": 1,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-01T14:30:00.000Z",
+      "status": "NEW",
+      "status_date": "2025-09-22T16:48:16.732Z"
+    },
+    {
+      "id": 33,
+      "serviceId": 1,
+      "masterId": 1,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-01T15:00:00.000Z",
+      "status": "NEW",
+      "status_date": "2025-09-22T16:48:18.988Z"
+    },
+    {
+      "id": 34,
+      "serviceId": 1,
+      "masterId": 1,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-01T15:30:00.000Z",
+      "status": "NEW",
+      "status_date": "2025-09-22T16:48:21.018Z"
+    },
+    {
+      "id": 35,
+      "serviceId": 1,
+      "masterId": 1,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-01T16:00:00.000Z",
+      "status": "NEW",
+      "status_date": "2025-09-22T16:48:23.497Z"
+    },
+    {
+      "id": 36,
+      "serviceId": 1,
+      "masterId": 1,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-01T16:30:00.000Z",
+      "status": "NEW",
+      "status_date": "2025-09-22T16:48:26.478Z"
+    },
+    {
+      "id": 37,
+      "serviceId": 1,
+      "masterId": 1,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-01T17:00:00.000Z",
+      "status": "NEW",
+      "status_date": "2025-09-22T16:48:29.275Z"
+    },
+    {
+      "id": 38,
+      "serviceId": 1,
+      "masterId": 1,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-01T17:30:00.000Z",
+      "status": "NEW",
+      "status_date": "2025-09-22T16:48:31.852Z"
+    },
+    {
+      "id": 39,
+      "serviceId": 1,
+      "masterId": 1,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-03T17:30:00.000Z",
+      "status": "NEW",
+      "status_date": "2025-09-22T16:48:59.444Z"
+    },
+    {
+      "id": 40,
+      "serviceId": 1,
+      "masterId": 1,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-02T17:30:00.000Z",
+      "status": "NEW",
+      "status_date": "2025-09-22T16:49:05.586Z"
+    },
+    {
+      "id": 41,
+      "serviceId": 1,
+      "masterId": 1,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-02T16:00:00.000Z",
+      "status": "NEW",
+      "status_date": "2025-09-22T16:49:11.068Z"
+    },
+    {
+      "id": 42,
+      "serviceId": 1,
+      "masterId": 1,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-02T09:00:00.000Z",
+      "status": "NEW",
+      "status_date": "2025-09-22T16:49:39.143Z"
+    },
+    {
+      "id": 43,
+      "serviceId": 3,
+      "masterId": 4,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-01T09:00:00.000Z",
+      "status": "NEW",
+      "status_date": "2025-09-22T16:51:00.480Z"
+    },
+    {
+      "id": 44,
+      "serviceId": 3,
+      "masterId": 4,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-02T14:30:00.000Z",
+      "status": "DONE",
+      "status_date": "2025-09-22T16:51:32.802Z"
+    },
+    {
+      "id": 45,
+      "serviceId": 1,
+      "masterId": 1,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-10-09T09:00:00.000Z",
+      "status": "NEW",
+      "status_date": "2025-10-13T14:16:12.191Z"
+    },
+    {
+      "id": 46,
+      "serviceId": 1,
+      "masterId": 1,
+      "clientId": 7,
+      "comment": "",
+      "desired_datetime": "2025-09-30T09:00:00.000Z",
+      "status": "NEW",
+      "status_date": "2025-10-13T14:16:31.704Z"
+    },
+    {
+      "id": 47,
+      "serviceId": 1,
+      "masterId": 1,
+      "clientId": 8,
+      "comment": "Сделай, лол",
+      "desired_datetime": "2026-02-19T12:30:00.000Z",
+      "status": "CANCELLED",
+      "status_date": "2026-02-20T08:40:30.276Z"
+    },
+    {
+      "id": 48,
+      "serviceId": 12,
+      "masterId": 9,
+      "clientId": 8,
+      "comment": "ол",
+      "desired_datetime": "2026-02-13T14:30:00.000Z",
+      "status": "DONE",
+      "status_date": "2026-02-20T08:51:50.818Z"
+    }
+  ],
+  "sessions": [
+    {
+      "token": "17c91e2da66a37d6efcc18812f921c87ce73652150bac2fc",
+      "userId": 5,
+      "expiresAt": 1757952199990
+    },
+    {
+      "token": "1f5e49e9c1ce6b9b1034427ff21bb677d51db70abb3ca28d",
+      "userId": 5,
+      "expiresAt": 1757952213430
+    },
+    {
+      "token": "26ff6ab8c0b1fd4f9cd372ad510b25f68855e20f6028ebfb",
+      "userId": 3,
+      "expiresAt": 1757952219394
+    },
+    {
+      "token": "1e4efa23cac6d0e8451d4ea50b58ffd2ebe28f0be67e86c1",
+      "userId": 6,
+      "expiresAt": 1757952251794
+    },
+    {
+      "token": "6c3c106576af0023802622f91ae89039b0ae251328eb21c6",
+      "userId": 6,
+      "expiresAt": 1757952261845
+    },
+    {
+      "token": "e365edb863e44a65f7b0584caf16c72ac6554202e5cb6d5e",
+      "userId": 5,
+      "expiresAt": 1757952859434
+    },
+    {
+      "token": "067e247a2edcfc5e527acef65b602a4d8b69e6df6cd32224",
+      "userId": 4,
+      "expiresAt": 1757952866800
+    },
+    {
+      "token": "7782d27b4c67f47528f17bb7e866f07170f290157ea82ab4",
+      "userId": 7,
+      "expiresAt": 1759151984148
+    },
+    {
+      "token": "818ff89db00612872ef41107c267140373e5d78eb87510d4",
+      "userId": 4,
+      "expiresAt": 1759152074498
+    },
+    {
+      "token": "a75cea1dbfebe4a3577ea4c4611a23ef56f4863b30f1ba87",
+      "userId": 7,
+      "expiresAt": 1759157812540
+    },
+    {
+      "token": "ff7d0808d6a44c9928e579999cbaf7eadfe10e6d4b36b28e",
+      "userId": 4,
+      "expiresAt": 1759157844671
+    },
+    {
+      "token": "fe2ad52ac3c25e24fda783f637768fb7fe29a586c4a9f755",
+      "userId": 7,
+      "expiresAt": 1759157949400
+    },
+    {
+      "token": "c0fa7fba4a976fc132fed4872f9193ff1633fc834ce4cf61",
+      "userId": 4,
+      "expiresAt": 1759157993323
+    },
+    {
+      "token": "d4d4d337416010b3a887ea91e99be626c2e2275c2f5aca27",
+      "userId": 4,
+      "expiresAt": 1759158167126
+    },
+    {
+      "token": "45294a32b329b5e08f250f9f9c0e06e5e5dc6ddab44e8d40",
+      "userId": 7,
+      "expiresAt": 1759162613159
+    },
+    {
+      "token": "0b8c7be778a66d7e326f657f30cd02d88955a73153a29dd2",
+      "userId": 4,
+      "expiresAt": 1759164600865
+    },
+    {
+      "token": "e37167e62dd9135786166553f5f663b445028c9328db5f2b",
+      "userId": 7,
+      "expiresAt": 1759164651246
+    },
+    {
+      "token": "237bd5919b28ed34f76199d9f1e504696ef4d67512ffdc44",
+      "userId": 4,
+      "expiresAt": 1759164683138
+    },
+    {
+      "token": "a4cda6ddbe50dac0c0992ac65db09805faef63bdb057a567",
+      "userId": 7,
+      "expiresAt": 1759192401215
+    },
+    {
+      "token": "0d2668196d2e9b3138363581dabf4d82f005ab5e351f6439",
+      "userId": 4,
+      "expiresAt": 1759192975475
+    },
+    {
+      "token": "2986436544a2c746862155ac440179a5e6ecdf3026a7afa1",
+      "userId": 7,
+      "expiresAt": 1760966063782
+    },
+    {
+      "token": "c55c16f09d030763223432086ac005528af2977d49ba4012",
+      "userId": 4,
+      "expiresAt": 1760970997818
+    },
+    {
+      "token": "17e492e9c12837d650cc6a41e577c1173b611df98fec22b6",
+      "userId": 4,
+      "expiresAt": 1760972606181
+    },
+    {
+      "token": "4b8f6653a369ab5f6bf8932da45455e497866be32787a467",
+      "userId": 4,
+      "expiresAt": 1760976296747
+    },
+    {
+      "token": "74fc7c7748d530225831d5f5db5395a082ac4e3334f857d9",
+      "userId": 7,
+      "expiresAt": 1761310697943
+    },
+    {
+      "token": "5aae3cc0299d6a0fb7d6f02db5874a0c84d998bde60b54da",
+      "userId": 4,
+      "expiresAt": 1761311692862
+    },
+    {
+      "token": "6bed98cd8ac993fc066d8c3f3fee77633fdd3654ab8965ed",
+      "userId": 8,
+      "expiresAt": 1772181537646
+    },
+    {
+      "token": "524da8afe9da1d791e12f72f12a5091149c5820894b1444d",
+      "userId": 9,
+      "expiresAt": 1772181666350
+    },
+    {
+      "token": "0fe96836bc08d29ea078740209aa149596d8dda718529cb8",
+      "userId": 8,
+      "expiresAt": 1772182211197
+    },
+    {
+      "token": "902c9a79e264425459e9360c6dfde0b220e8253e52084689",
+      "userId": 9,
+      "expiresAt": 1772182291067
+    },
+    {
+      "token": "97a7045765e1743843e50e1276f5695cb48a2720c4e3bfe8",
+      "userId": 8,
+      "expiresAt": 1772719026042
+    }
+  ],
+  "availability": {
+    "4": {
+      "slotMinutes": 30,
+      "weekTemplate": {
+        "0": [],
+        "1": [
+          [
+            "14:00",
+            "18:00"
+          ]
+        ],
+        "2": [
+          [
+            "14:00",
+            "18:00"
+          ]
+        ],
+        "3": [
+          [
+            "09:00",
+            "13:00"
+          ],
+          [
+            "14:00",
+            "18:00"
+          ]
+        ],
+        "4": [
+          [
+            "09:00",
+            "13:00"
+          ],
+          [
+            "14:00",
+            "18:00"
+          ]
+        ],
+        "5": [
+          [
+            "10:00",
+            "16:00"
+          ]
+        ],
+        "6": []
+      },
+      "exceptions": {
+        "2025-09-23": []
+      }
+    }
+  }
+}

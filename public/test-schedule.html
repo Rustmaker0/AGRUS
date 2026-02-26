@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Тест расписания</title>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        pre { background: #f4f4f4; padding: 10px; border-radius: 5px; }
+        input, textarea { width: 100%; padding: 8px; margin: 5px 0; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        .section { border: 1px solid #ccc; padding: 15px; margin: 15px 0; border-radius: 5px; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Тест сохранения расписания</h1>
+    
+    <div class="section">
+        <h3>Шаг 1: Получите токен мастера</h3>
+        <p>Войдите как мастер и скопируйте токен из localStorage (F12 → Application → Local Storage)</p>
+        <input type="text" id="token" placeholder="Вставьте токен мастера" style="width: 500px;">
+        <button onclick="checkToken()">Проверить токен</button>
+        <pre id="tokenResult"></pre>
+    </div>
+    
+    <div class="section">
+        <h3>Шаг 2: ID мастера</h3>
+        <input type="number" id="masterId" value="9" placeholder="ID мастера">
+        <button onclick="getSchedule()">Получить расписание</button>
+        <pre id="getResult"></pre>
+    </div>
+    
+    <div class="section">
+        <h3>Шаг 3: Установить расписание</h3>
+        <textarea id="scheduleJson" rows="10">{
+  "slotMinutes": 30,
+  "weekTemplate": {
+    "0": [],
+    "1": [["09:00","13:00"],["14:00","18:00"]],
+    "2": [["09:00","13:00"],["14:00","18:00"]],
+    "3": [["09:00","13:00"],["14:00","18:00"]],
+    "4": [["09:00","13:00"],["14:00","18:00"]],
+    "5": [["10:00","16:00"]],
+    "6": [["10:00","14:00"]]
+  },
+  "exceptions": {}
+}</textarea>
+        <button onclick="setSchedule()">Сохранить расписание</button>
+        <pre id="setResult"></pre>
+    </div>
+    
+    <script>
+        async function checkToken() {
+            const token = document.getElementById('token').value;
+            const result = document.getElementById('tokenResult');
+            
+            try {
+                const response = await fetch('/api/users/me', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+                result.innerHTML = `Статус: ${response.status}\n\n${JSON.stringify(data, null, 2)}`;
+            } catch (e) {
+                result.innerHTML = 'Ошибка: ' + e.message;
+            }
+        }
+        
+        async function getSchedule() {
+            const masterId = document.getElementById('masterId').value;
+            const result = document.getElementById('getResult');
+            
+            try {
+                const response = await fetch(`/api/availability/${masterId}`);
+                const data = await response.json();
+                result.innerHTML = JSON.stringify(data, null, 2);
+            } catch (e) {
+                result.innerHTML = 'Ошибка: ' + e.message;
+            }
+        }
+        
+        async function setSchedule() {
+            const token = document.getElementById('token').value;
+            const masterId = document.getElementById('masterId').value;
+            const schedule = JSON.parse(document.getElementById('scheduleJson').value);
+            const result = document.getElementById('setResult');
+            
+            try {
+                const response = await fetch(`/api/availability/${masterId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(schedule)
+                });
+                const data = await response.json();
+                result.innerHTML = `Статус: ${response.status}\n\n${JSON.stringify(data, null, 2)}`;
+            } catch (e) {
+                result.innerHTML = 'Ошибка: ' + e.message;
+            }
+        }
+    </script>
+</body>
+</html>

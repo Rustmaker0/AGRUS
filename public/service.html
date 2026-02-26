@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Оформление услуги — АГРУС</title>
+  <link rel="stylesheet" href="/styles.css"/>
+  <style>
+    .svc-wrap { display:grid; grid-template-columns: 1.15fr .85fr; gap:16px; }
+    @media (max-width: 1000px){ .svc-wrap{ grid-template-columns:1fr; } }
+
+    /* Календарь месяца */
+    .cal { background:#fff; border:1px solid var(--border); border-radius:14px; box-shadow: var(--shadow); padding:12px; }
+    .cal-head { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
+    .cal-title { font-weight:800; }
+    .cal-grid { display:grid; grid-template-columns: repeat(7, 1fr); gap:6px; }
+    .cal-dow { text-align:center; color:var(--muted); font-size:.9rem; }
+    .cal-cell { position:relative; aspect-ratio: 1 / 1; border:1px solid var(--border); border-radius:10px;
+                display:flex; align-items:flex-start; justify-content:flex-end; padding:6px; cursor:pointer; background:#fff; }
+    .cal-cell .num { font-weight:700; }
+    .cal-cell:hover { outline:2px solid var(--focus); z-index:1; }
+    .cal-cell.disabled { background:#f1f5f9; color:#94a3b8; cursor:not-allowed; }
+    .cal-cell.busy { background:#fee2e2; border-color:#fecaca; }
+    .cal-cell.partial { background:#e0f2fe; border-color:#bae6fd; }
+    .cal-legend { display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; }
+    .cal-dot { width:12px; height:12px; border-radius:3px; display:inline-block; border:1px solid var(--border); }
+    .lg-free { background:#fff; }
+    .lg-partial { background:#e0f2fe; border-color:#bae6fd; }
+    .lg-busy { background:#fee2e2; border-color:#fecaca; }
+    .lg-off { background:#f1f5f9; }
+
+    /* Слоты дня */
+    .day-panel { background:#fff; border:1px solid var(--border); border-radius:14px; box-shadow: var(--shadow); padding:12px; }
+    .slots { display:grid; grid-template-columns: repeat(auto-fill, minmax(130px,1fr)); gap:8px; margin-top:8px; }
+    .slot { padding:8px 10px; border:1px solid var(--border); border-radius:10px; background:#fff; cursor:pointer; text-align:center; font-size:0.9rem; }
+    .slot.busy { background:#fee2e2; border-color:#fecaca; color:#991b1b; cursor:not-allowed; }
+    .slot.off { background:#f1f5f9; color:#94a3b8; cursor:not-allowed; }
+    .slot.free:hover { background: var(--primary-weak); border-color: var(--primary); }
+    .slot.selected { background: var(--primary); border-color: var(--primary); color:#fff; }
+
+    .svc-price { font-size:1.6rem; font-weight:800; }
+    .svc-meta { color:var(--muted); }
+
+    .alert { background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; padding:10px 12px; border-radius:10px; margin-top:10px; }
+    .debug-info { font-size:0.8rem; color:#64748b; margin-top:5px; display:none; }
+  </style>
+</head>
+<body id="page-service">
+  <main class="container">
+    <div class="card" id="svcCard">
+      <div class="card-title">
+        <div>
+          <h1 id="svcTitle" style="margin-bottom:4px">Загрузка…</h1>
+          <div class="svc-meta" id="svcMeta">—</div>
+        </div>
+        <div class="svc-price" id="svcPrice">—</div>
+      </div>
+      <p id="svcDesc" style="margin:0"></p>
+      <div id="svcError" class="alert" style="display:none"></div>
+    </div>
+
+    <section class="svc-wrap" style="margin-top:12px">
+      <!-- Левая часть: календарь месяца + легенда -->
+      <div class="cal card">
+        <div class="cal-head">
+          <button class="btn-secondary" id="prevMonth">‹</button>
+          <div class="cal-title" id="calTitle">—</div>
+          <button class="btn-secondary" id="nextMonth">›</button>
+        </div>
+
+        <div class="cal-grid" id="dowRow"></div>
+        <div class="cal-grid" id="monthGrid" style="margin-top:6px"></div>
+
+        <div class="cal-legend">
+          <span><span class="cal-dot lg-free"></span> свободно</span>
+          <span><span class="cal-dot lg-partial"></span> частично занято</span>
+          <span><span class="cal-dot lg-busy"></span> занято</span>
+          <span><span class="cal-dot lg-off"></span> нерабочий день</span>
+        </div>
+      </div>
+
+      <!-- Правая часть: слоты дня + комментарий + оформить -->
+      <div class="day-panel card">
+        <div class="card-title">
+          <h2 id="dayTitle">Выберите дату</h2>
+          <button class="btn" id="makeOrder" disabled>Оформить заявку</button>
+        </div>
+
+        <div class="help">Свободные интервалы в выбранный день</div>
+        <div class="slots" id="slots"></div>
+        <div id="slotsDebug" class="debug-info"></div>
+
+        <div class="form" style="margin-top:12px">
+          <label for="comment">Комментарий к заявке (необязательно)</label>
+          <textarea id="comment" class="input" rows="3" placeholder="Опишите проблему, адрес, предпочтения и т.д."></textarea>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+  <script>
+    const q = (s)=>document.querySelector(s), qa=(s)=>document.querySelectorAll(s);
+
+    // ===== локальные date utils
+    const ruMonths = ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
+    function ymd(d){ 
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+    function pad(n){ return String(n).padStart(2,'0'); }
+
+    // ===== state
+    let me=null, service=null, availability=null;
+    let monthCursor = new Date(); monthCursor.setDate(1);
+    let selectedDate = null;
+    let selectedSlotISO = null;
+
+    // кэш срезов слотов по датам: { 'YYYY-MM-DD': {slotMinutes, slots:[{start,end,status}] } }
+    const slotsCache = {};
+
+    document.addEventListener('DOMContentLoaded', init);
+
+    async function init(){
+      // читаем id услуги из query
+      const u = new URL(location.href);
+      const idParam = u.searchParams.get('id');
+      if(!idParam){ showError("Не передан параметр услуги (?id). Вернитесь в каталог и выберите услугу."); return; }
+      const serviceId = Number(idParam);
+
+      try{ me = await API.getMe(); }catch{}
+
+      // — услуга (с мягким фоллбеком: /services/:id → /services)
+      try {
+        service = await API.services.get(serviceId);
+      } catch {
+        const list = await API.services.list().catch(()=>[]);
+        service = list.find(s => String(s.id) === String(serviceId));
+      }
+      if(!service){ showError("Не удалось загрузить услугу. Откройте её из каталога ещё раз."); return; }
+
+      // карточка
+      q('#svcTitle').textContent = service.title || 'Услуга';
+      q('#svcDesc').textContent  = service.description || '';
+      q('#svcPrice').textContent = `${Number(service.price||0).toFixed(2)} ₽`;
+      try {
+        const cats = await API.categories.list();
+        const cat = cats.find(c=> String(c.id) === String(service.categoryId));
+        q('#svcMeta').textContent = `${cat?cat.name:'Категория'} • Мастер #${service.masterId}`;
+      } catch { q('#svcMeta').textContent = `Мастер #${service.masterId}`; }
+
+      // базовая доступность (для офф-дней в отсутствие сети, но реальную занятость берём из /slots)
+      try { availability = await API.availability.get(service.masterId); }
+      catch { availability = defaultAvailability(); }
+
+      // подписи дней недели + первичная отрисовка месяца (с подгрузкой /slots)
+      renderDOW();
+      await renderMonth();
+
+      q('#prevMonth').onclick = async ()=>{ monthCursor.setMonth(monthCursor.getMonth()-1); await renderMonth(); };
+      q('#nextMonth').onclick = async ()=>{ monthCursor.setMonth(monthCursor.getMonth()+1); await renderMonth(); };
+      q('#makeOrder').onclick = submitOrder;
+    }
+
+    function showError(text){
+      const e = q('#svcError'); e.textContent = text; e.style.display = 'block';
+    }
+
+    // ===== MONTH
+    function renderDOW(){
+      q('#dowRow').innerHTML = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map(n=> `<div class="cal-dow">${n}</div>`).join('');
+    }
+
+    async function renderMonth(){
+      // сброс правой панели
+      selectedDate = null; selectedSlotISO = null;
+      q('#dayTitle').textContent = 'Выберите дату';
+      q('#makeOrder').disabled = true;
+      q('#slots').innerHTML = '';
+
+      const y = monthCursor.getFullYear(), m = monthCursor.getMonth();
+      q('#calTitle').textContent = `${ruMonths[m]} ${y}`;
+
+      const first = new Date(y, m, 1);
+      const last  = new Date(y, m+1, 0);
+      const firstDow = (first.getDay() + 6) % 7; // Пн=0, Вс=6
+
+      // заранее загрузим /slots для всех дней месяца (кэш), чтобы окрасить busy/partial/free
+      const days = [];
+      for(let d=1; d<=last.getDate(); d++){ days.push(ymd(new Date(y, m, d))); }
+      const toLoad = days.filter(k => !slotsCache[k]);
+      if(toLoad.length){
+        await Promise.all(toLoad.map(async (k)=>{
+          try { 
+            slotsCache[k] = await API.availability.slots(service.masterId, k); 
+          } catch (error) {
+            console.warn(`Не удалось загрузить слоты для ${k}:`, error);
+            slotsCache[k] = { slotMinutes: availability.slotMinutes||30, slots: [] }; 
+          }
+        }));
+      }
+
+      const grid = q('#monthGrid'); grid.innerHTML = '';
+
+      // пустые ячейки до первого числа
+      for(let i=0;i<firstDow;i++){
+        const d = document.createElement('div');
+        d.className = 'cal-cell disabled';
+        grid.append(d);
+      }
+
+      // сами дни
+      for(let day=1; day<=last.getDate(); day++){
+        const dt = new Date(y, m, day);
+        const key = ymd(dt);
+        const summary = summarizeDay(slotsCache[key]);
+
+        const cell = document.createElement('div');
+        cell.className = 'cal-cell';
+        if(summary==='off') cell.classList.add('disabled');
+        if(summary==='busy') cell.classList.add('busy');
+        if(summary==='partial') cell.classList.add('partial');
+
+        cell.innerHTML = `<span class="num">${day}</span>`;
+
+        if(summary!=='off'){
+          cell.addEventListener('click', ()=> selectDay(dt));
+        }
+        grid.append(cell);
+      }
+    }
+
+    function summarizeDay(dayObj){
+      const arr = (dayObj && Array.isArray(dayObj.slots)) ? dayObj.slots : [];
+      if(arr.length===0) return 'off';
+      let free=0, busy=0;
+      for(const s of arr){ 
+        if(s.status==='busy') busy++; 
+        else free++; 
+      }
+      if(free===0 && busy>0) return 'busy';
+      if(free>0 && busy>0)   return 'partial';
+      if(free>0 && busy===0) return 'free';
+      return 'off';
+    }
+
+    // ===== DAY VIEW - ИСПРАВЛЕННАЯ ВЕРСИЯ
+    async function selectDay(date){
+        selectedDate = date; 
+        selectedSlotISO = null;
+        
+        // Форматируем дату для отображения
+        const day = date.getDate().toString().padStart(2, '0');
+        const month = ruMonths[date.getMonth()].toLowerCase();
+        const year = date.getFullYear();
+        q('#dayTitle').textContent = `${day} ${month} ${year}`;
+        q('#makeOrder').disabled = true;
+
+        const key = ymd(date);
+        if(!slotsCache[key]){
+            try { 
+                slotsCache[key] = await API.availability.slots(service.masterId, key); 
+            } catch (error) {
+                console.error('Ошибка загрузки слотов:', error);
+                slotsCache[key] = { slotMinutes: availability.slotMinutes||30, slots: [] }; 
+            }
+        }
+
+        const data = slotsCache[key];
+        const box = q('#slots'); 
+        box.innerHTML = '';
+        
+        if(!data.slots || data.slots.length === 0){
+            box.innerHTML = `<div class="empty">В этот день мастер не работает.</div>`;
+            return;
+        }
+
+        // Сортируем слоты по времени начала
+        const sortedSlots = [...data.slots].sort((a, b) => 
+            new Date(a.start) - new Date(b.start)
+        );
+
+        // Группируем слоты
+        const freeSlots = sortedSlots.filter(s => s.status === 'free');
+        const busySlots = sortedSlots.filter(s => s.status === 'busy');
+        
+        if (freeSlots.length === 0) {
+            box.innerHTML = `<div class="empty">На этот день все слоты заняты.</div>`;
+        }
+
+        // Показываем все слоты
+        [...freeSlots, ...busySlots].forEach(s => {
+            // Создаем объекты Date
+            const startDate = new Date(s.start);
+            const endDate = new Date(s.end);
+            
+            // Получаем часы и минуты
+            const startHours = startDate.getUTCHours().toString().padStart(2, '0');
+            const startMinutes = startDate.getUTCMinutes().toString().padStart(2, '0');
+            const endHours = endDate.getUTCHours().toString().padStart(2, '0');
+            const endMinutes = endDate.getUTCMinutes().toString().padStart(2, '0');
+            
+            // Проверяем, не переходит ли слот на следующий день
+            const startDay = startDate.getUTCDate();
+            const endDay = endDate.getUTCDate();
+            let endDisplay = `${endHours}:${endMinutes}`;
+            if (endDay > startDay) {
+                endDisplay += ' (след. дня)';
+            }
+            
+            // Формируем метку времени
+            const label = `${startHours}:${startMinutes} — ${endDisplay}`;
+            
+            const b = document.createElement('button');
+            b.className = `slot ${s.status}`;
+            b.textContent = label;
+            b.dataset.start = s.start;
+            b.dataset.end = s.end;
+            
+            if (s.status === 'busy') {
+                b.disabled = true;
+                b.title = 'Этот слот уже занят';
+            } else {
+                b.addEventListener('click', () => {
+                    // Убираем выделение со всех слотов
+                    document.querySelectorAll('.slot').forEach(x => x.classList.remove('selected'));
+                    // Выделяем текущий слот
+                    b.classList.add('selected');
+                    // Сохраняем выбранный слот
+                    selectedSlotISO = s.start;
+                    // Активируем кнопку оформления
+                    q('#makeOrder').disabled = false;
+                    
+                    console.log('Выбран слот:', {
+                        start: s.start,
+                        end: s.end,
+                        localTime: label
+                    });
+                });
+            }
+            box.append(b);
+        });
+    }
+
+    function human(d){
+      return `${String(d.getDate()).padStart(2,'0')} ${ruMonths[d.getMonth()].toLowerCase()} ${d.getFullYear()}`;
+    }
+
+    // ===== submit - ИСПРАВЛЕННАЯ ВЕРСИЯ
+    async function submitOrder(){
+      if(!selectedSlotISO) {
+        alert('Выберите время для заявки');
+        return;
+      }
+      
+      try{
+        const me = await API.getMe().catch(()=>null);
+        if(!me){ 
+          location.href='/login.html?mode=login'; 
+          return; 
+        }
+        if(me.role!=='client'){ 
+          alert('Для оформления заявки войдите как клиент.'); 
+          return; 
+        }
+        
+        const comment = (q('#comment').value||'').trim();
+        
+        // Проверяем, что дата не в прошлом
+        const selectedDate = new Date(selectedSlotISO);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        if (selectedDate < today) {
+          alert('Нельзя создать заказ на прошедшую дату. Выберите будущую дату.');
+          return;
+        }
+        
+        console.log('Отправка заказа:', {
+          serviceId: service.id,
+          desired_datetime: selectedSlotISO,
+          comment: comment
+        });
+        
+        await API.orders.create(service.id, selectedSlotISO, comment);
+        alert('✅ Заявка создана! Отслеживать можно в «ЛК клиента → Мои заказы».');
+        location.href = '/client.html?tab=orders';
+      } catch(e) {
+        console.error('Ошибка создания заказа:', e);
+        
+        // Показываем более информативное сообщение об ошибке
+        let errorMessage = 'Не удалось создать заявку.';
+        
+        if (e?.details) {
+          if (e.details.error === 'SLOT_UNAVAILABLE') {
+            errorMessage = 'Этот слот уже занят. Обновите календарь и выберите другой.';
+          } else if (e.details.error === 'SLOT_NOT_IN_SCHEDULE') {
+            errorMessage = 'Слот вне рабочего графика мастера.';
+          } else if (e.details.error === 'PAST_DATE') {
+            errorMessage = 'Нельзя создать заказ на прошедшую дату.';
+          } else if (e.details.error) {
+            errorMessage = `Ошибка: ${e.details.error}`;
+          }
+        }
+        
+        alert(errorMessage);
+      }
+    }
+
+    // Функция для отладки - можно вызвать из консоли
+    window.debugSlots = function(masterId, date) {
+      if (!masterId) masterId = service?.masterId;
+      if (!date) date = ymd(new Date());
+      
+      fetch(`/api/availability/${masterId}/slots?date=${date}`)
+        .then(r => r.json())
+        .then(data => {
+          console.log('Слоты от сервера:', data);
+          alert('Смотри консоль браузера (F12)');
+        })
+        .catch(err => console.error(err));
+    };
+  </script>
+</body>
+</html>
