@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Переход в каталог — АГРУС</title>
+  <meta http-equiv="refresh" content="0; url=/catalog.html" />
+  <link rel="stylesheet" href="/styles.css"/>
+</head>
+<body>
+  <main class="container">
+    <div class="card">
+      <h1>Переход в каталог услуг</h1>
+      <p class="help">Если переход не сработал автоматически, нажмите кнопку ниже.</p>
+      <a class="btn" href="/catalog.html">Открыть каталог</a>
+    </div>
+  </main>
+  <script>
+    const url = new URL(location.href);
+    const target = new URL('/catalog.html', location.origin);
+    url.searchParams.forEach((value, key) => target.searchParams.set(key, value));
+    location.replace(target.toString());
+  </script>
+</body>
+</html>

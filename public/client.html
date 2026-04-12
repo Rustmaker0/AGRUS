@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ЛК клиента — АГРУС</title>
+  <link rel="stylesheet" href="/styles.css"/>
+  <style>
+    .dashboard { display:grid; grid-template-columns: 1.05fr .95fr; gap:16px; }
+    @media (max-width: 1000px){ .dashboard{ grid-template-columns:1fr; } }
+    .subtle { color: var(--muted); }
+    .kpi { display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; }
+    @media (max-width: 700px){ .kpi{ grid-template-columns: repeat(2, 1fr); } }
+    .quick { display:flex; flex-wrap:wrap; gap:8px; }
+    .quick .btn { padding:10px 14px; }
+    .order-list { display:grid; grid-template-columns: 1fr; gap:10px; }
+    .order-card h3{ margin:0 0 4px; }
+    .order-meta { color: var(--muted); font-size:.95rem; }
+    .status-badge { padding:4px 8px; border:1px solid var(--border); border-radius:999px; font-size:.85rem; }
+    .when { font-weight:600; }
+    .ord-actions{ display:flex; gap:8px; flex-wrap:wrap; }
+    .mini-grid { display:grid; grid-template-columns: repeat(auto-fill,minmax(240px,1fr)); gap:10px; }
+    .svc-mini{ border:1px solid var(--border); border-radius:12px; padding:10px; background:#fff; }
+    .svc-mini h4{ margin:0 0 6px; }
+    .svc-mini .note{ color:var(--muted); font-size:.92rem; }
+    .svc-mini .row{ justify-content:space-between; }
+    .pillbar{ display:flex; gap:8px; flex-wrap:wrap; }
+    .search-row{ display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+    .search-row .input{ flex:1 1 260px; }
+    .toast { position:fixed; right:16px; bottom:16px; background:#fff; border:1px solid var(--border);
+             padding:12px 14px; border-radius:10px; box-shadow: var(--shadow); display:none; }
+  </style>
+</head>
+<body id="page-client">
+  <main class="container">
+    <div class="card">
+      <div class="card-title">
+        <div>
+          <h1 style="margin-bottom:4px">Личный кабинет клиента</h1>
+          <div class="help">Следите за заявками, быстро переоформляйте любимые услуги и открывайте уведомления из шапки сайта</div>
+        </div>
+        <span id="hello" class="tag">—</span>
+      </div>
+
+      <div style="margin-top:6px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+        <div class="tabs">
+          <button class="tab" data-tab="overview">Обзор</button>
+          <button class="tab" data-tab="orders">Мои заказы</button>
+        </div>
+        <div class="kpi" id="miniKPI" style="flex:1 1 360px"></div>
+      </div>
+    </div>
+
+    <section id="screen" class="dashboard" style="margin-top:12px"></section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="/app.js"></script>
+  <script>
+    const q = (s)=>document.querySelector(s), qa=(s)=>document.querySelectorAll(s);
+    const statusName = { NEW:'Новый', ACCEPTED:'Принят', DONE:'Выполнен', REJECTED:'Отклонён', CANCELLED:'Отменён' };
+
+    let me=null, categories=[], services=[], orders=[];
+    let activeTab='overview';
+    let orderFilter='ALL', orderQuery='';
+    let pendingFocusOrderId = null;
+
+    document.addEventListener('DOMContentLoaded', init);
+
+    async function init(){
+      try{
+        me = await API.getMe();
+        if(me.role !== 'client') return location.href = '/';
+        q('#hello').textContent = `${me.name||'Клиент'} (${me.email})`;
+      }catch{ return location.href='/login.html?mode=login'; }
+
+      readUrlState();
+      bindTabs();
+      await Promise.all([loadCats(), loadServices(), loadOrders()]);
+      renderMiniKPI();
+      render();
+    }
+
+    function readUrlState(){
+      const url = new URL(location.href);
+      const tab = url.searchParams.get('tab');
+      activeTab = tab === 'orders' ? 'orders' : 'overview';
+      const orderId = Number(url.searchParams.get('orderId') || 0);
+      pendingFocusOrderId = Number.isInteger(orderId) && orderId > 0 ? orderId : null;
+    }
+
+    function syncUrl(){
+      const url = new URL(location.href);
+      url.searchParams.set('tab', activeTab);
+      if (pendingFocusOrderId) url.searchParams.set('orderId', String(pendingFocusOrderId));
+      else url.searchParams.delete('orderId');
+      history.replaceState(null, '', url);
+    }
+
+    function bindTabs(){
+      qa('.tab').forEach(b=> b.addEventListener('click', ()=> setTab(b.dataset.tab, { push:true })));
+      setTab(activeTab, { push:false });
+    }
+
+    function setTab(tab, { push = true } = {}){
+      activeTab = tab === 'orders' ? 'orders' : 'overview';
+      qa('.tab').forEach(x=> x.classList.toggle('active', x.dataset.tab === activeTab));
+      if (push) syncUrl();
+      render();
+    }
+
+    async function loadCats(){ categories = await API.categories.list(); }
+    async function loadServices(){ services = await API.services.list(); }
+    async function loadOrders(){ orders = await API.orders.list(); }
+
+    function renderMiniKPI(){
+      const k = {
+        total: orders.length,
+        NEW: orders.filter(o=>o.status==='NEW').length,
+        ACCEPTED: orders.filter(o=>o.status==='ACCEPTED').length,
+        DONE: orders.filter(o=>o.status==='DONE').length
+      };
+      q('#miniKPI').innerHTML = [
+        ['Заказы', k.total],
+        ['Новые', k.NEW],
+        ['Приняты', k.ACCEPTED],
+        ['Выполнены', k.DONE],
+      ].map(([l,v])=> `<div class="stat-card"><div class="stat-number">${v}</div><div class="stat-label">${l}</div></div>`).join('');
+    }
+
+    function render(){
+      if(activeTab==='overview') return renderOverview();
+      if(activeTab==='orders') return renderOrdersTab();
+    }
+
+    function renderOverview(){
+      const screen = q('#screen');
+      const upcoming = [...orders]
+        .filter(o=> o.desired_datetime && (o.status==='NEW' || o.status==='ACCEPTED'))
+        .sort((a,b)=> getPseudoUtcComparableTimestamp(a.desired_datetime)-getPseudoUtcComparableTimestamp(b.desired_datetime))[0] || null;
+
+      const recent = [...orders]
+        .sort((a,b)=> getPseudoUtcComparableTimestamp(b.status_date||b.desired_datetime||0) - getPseudoUtcComparableTimestamp(a.status_date||a.desired_datetime||0))
+        .slice(0,5);
+
+      const freqMap = new Map();
+      orders.forEach(o=> freqMap.set(o.serviceId, (freqMap.get(o.serviceId)||0)+1));
+      const frequent = [...freqMap.entries()].sort((a,b)=> b[1]-a[1]).slice(0,6).map(([id,cnt])=>{
+        const s = services.find(x=>x.id===id) || {};
+        return { service:s, count:cnt };
+      }).filter(x=> x.service && x.service.id);
+
+      screen.innerHTML = `
+        <section class="card">
+          <div class="card-title">
+            <h2>Ближайшая запись</h2>
+            <div class="quick">
+              <button class="btn" id="qa-new">Создать заказ</button>
+              <button class="btn-secondary" id="qa-orders">Мои заказы</button>
+            </div>
+          </div>
+          ${ renderUpcoming(upcoming) }
+        </section>
+
+        <section class="card">
+          <div class="card-title">
+            <h2>Последние заявки</h2>
+            <span class="subtle">5 последних</span>
+          </div>
+          ${ recent.length ? `<div class="order-list" id="recentList"></div>` : `<div class="empty">Заявок пока нет. Нажмите «Создать заказ», чтобы выбрать услугу.</div>`}
+        </section>
+
+        <section class="card" style="grid-column: 1 / -1">
+          <div class="card-title">
+            <h2>Часто заказываемые</h2>
+            <span class="subtle">Быстрый повтор из истории</span>
+          </div>
+          ${ frequent.length ? `<div class="mini-grid" id="freqGrid"></div>` : `<div class="empty">Список пуст — оформите несколько заявок, и тут появятся быстрые действия.</div>`}
+        </section>
+      `;
+
+      q('#qa-new').onclick = ()=> location.href='/catalog.html';
+      q('#qa-orders').onclick = ()=> setTab('orders');
+
+      if(recent.length){
+        const box = q('#recentList');
+        recent.forEach(o=>{
+          const s = services.find(x=>x.id===o.serviceId) || {};
+          const whenStr = o.desired_datetime ? formatPseudoUtcDateTime(o.desired_datetime) : '—';
+          const showWhen = whenStr !== '—';
+          const el = document.createElement('div');
+          el.className='card order-card';
+          el.innerHTML = `
+            <h3>${s.title || 'Услуга'}</h3>
+            <div class="order-meta">
+              <span class="status-badge">${statusName[o.status] || o.status}</span>
+              ${ showWhen ? ` • <span class="when">${whenStr}</span>` : '' }
+            </div>
+            <div class="ord-actions" style="margin-top:8px">
+              ${ (o.status==='NEW'||o.status==='ACCEPTED') ? `<button class="btn-secondary" data-cancel="${o.id}">Отменить</button>` : '' }
+              <button class="btn" data-reorder="${o.serviceId}">Повторить</button>
+              <a class="btn-secondary" href="/service.html?id=${o.serviceId}">Подробнее</a>
+            </div>
+          `;
+          const cbtn = el.querySelector('[data-cancel]');
+          if(cbtn) cbtn.onclick = ()=> cancelOrder(o.id, ()=> renderOverview());
+          el.querySelector('[data-reorder]').onclick = ()=> reorder(o.serviceId);
+          box.append(el);
+        });
+      }
+
+      if(frequent.length){
+        const grid = q('#freqGrid');
+        frequent.forEach(({service: s, count})=>{
+          const cat = categories.find(c=>c.id===s.categoryId);
+          const d = document.createElement('div');
+          d.className='svc-mini';
+          d.innerHTML = `
+            <h4>${s.title}</h4>
+            <div class="note">${cat?cat.name:'Без категории'} • ${(s.price||0).toFixed(2)} ₽</div>
+            <div class="row" style="margin-top:6px">
+              <span class="subtle">заказывали ${count}×</span>
+              <button class="btn" data-quick="${s.id}">Заказать</button>
+            </div>
+          `;
+          d.querySelector('[data-quick]').onclick = ()=> reorder(s.id);
+          grid.append(d);
+        });
+      }
+
+      const upCancel = document.getElementById('upCancel');
+      if(upCancel && upcoming) upCancel.onclick = ()=> cancelOrder(upcoming.id, ()=> renderOverview());
+    }
+
+    function renderUpcoming(upcoming){
+      if(!upcoming){
+        return `<div class="empty">Нет ближайших записей. Нажмите «Создать заказ», чтобы выбрать услугу и время.</div>`;
+      }
+      const s = services.find(x=>x.id===upcoming.serviceId) || {};
+      const whenStr = upcoming.desired_datetime ? formatPseudoUtcDateTime(upcoming.desired_datetime) : '—';
+      const showWhen = whenStr !== '—';
+      return `
+        <div class="card order-card" style="margin-top:6px">
+          <h3>${s.title || 'Услуга'}</h3>
+          <div class="order-meta">
+            <span class="status-badge">${statusName[upcoming.status] || upcoming.status}</span>
+            ${ showWhen ? ` • <span class="when">${whenStr}</span>` : '' }
+          </div>
+          <p class="subtle" style="margin:8px 0 0">Стоимость: <strong>${(s.price||0).toFixed(2)} ₽</strong></p>
+          <div class="ord-actions" style="margin-top:8px">
+            <a class="btn-secondary" href="/service.html?id=${upcoming.serviceId}">Подробнее</a>
+            <button class="btn" onclick="location.href='/service.html?id=${upcoming.serviceId}&orderId=${upcoming.id}'">Переназначить</button>
+            ${ (upcoming.status==='NEW'||upcoming.status==='ACCEPTED') ? `<button class="btn-danger" id="upCancel">Отменить</button>` : '' }
+          </div>
+        </div>
+      `;
+    }
+
+    function reorder(serviceId, orderId=null){
+      const suffix = orderId ? `&orderId=${orderId}` : '';
+      location.href = `/service.html?id=${serviceId}${suffix}`;
+    }
+
+    function renderOrdersTab(){
+      const screen = q('#screen');
+      screen.innerHTML = `
+        <section class="card" style="grid-column: 1 / -1">
+          <div class="card-title">
+            <h2>Мои заказы</h2>
+            <div class="pillbar" id="ordPills">
+              ${['ALL','NEW','ACCEPTED','DONE','REJECTED','CANCELLED'].map(st=>`
+                <button class="pill ${orderFilter===st?'active':''}" data-st="${st}">
+                  ${st==='ALL' ? 'Все' : statusName[st]}
+                </button>`).join('')}
+            </div>
+          </div>
+          <div class="search-row">
+            <input id="ordSearch" class="input" placeholder="Поиск по названию услуги…" value="${orderQuery}"/>
+          </div>
+          <div class="order-list" id="ordList" style="margin-top:10px"></div>
+        </section>
+      `;
+
+      q('#ordPills').onclick = (e)=>{
+        const b = e.target.closest('.pill'); if(!b) return;
+        orderFilter = b.dataset.st;
+        qa('#ordPills .pill').forEach(x=>x.classList.remove('active'));
+        b.classList.add('active');
+        drawOrders();
+      };
+      q('#ordSearch').oninput = e=>{ orderQuery = (e.target.value||'').trim().toLowerCase(); drawOrders(); };
+
+      drawOrders();
+    }
+
+    function drawOrders(){
+      const grid = q('#ordList');
+      let list = [...orders];
+      if(orderFilter!=='ALL') list = list.filter(o=> o.status===orderFilter);
+      if(orderQuery){
+        list = list.filter(o=>{
+          const s = services.find(x=>x.id===o.serviceId) || {};
+          return (s.title||'').toLowerCase().includes(orderQuery);
+        });
+      }
+      if(!list.length){
+        grid.innerHTML = `<div class="empty">Нет заказов в выбранной выборке.</div>`;
+        return;
+      }
+      grid.innerHTML = '';
+      list.sort((a,b)=> getPseudoUtcComparableTimestamp(b.status_date||b.desired_datetime||0) - getPseudoUtcComparableTimestamp(a.status_date||a.desired_datetime||0));
+      list.forEach(o=>{
+        const s = services.find(x=>x.id===o.serviceId) || {};
+        const whenStr = o.desired_datetime ? formatPseudoUtcDateTime(o.desired_datetime) : '—';
+        const showWhen = whenStr !== '—';
+        const el = document.createElement('div');
+        el.className='card order-card';
+        el.dataset.orderId = String(o.id);
+        if (pendingFocusOrderId && Number(pendingFocusOrderId) === Number(o.id)) {
+          el.classList.add('is-highlighted');
+        }
+        el.innerHTML = `
+          <h3>${s.title || 'Услуга'}</h3>
+          <div class="order-meta">
+            <span class="status-badge">${statusName[o.status] || o.status}</span>
+            ${ showWhen ? ` • <span class="when">${whenStr}</span>` : '' }
+          </div>
+          <p class="subtle" style="margin:6px 0">Стоимость: <strong>${(s.price||0).toFixed(2)} ₽</strong></p>
+          <div class="ord-actions">
+            ${(o.status==='NEW'||o.status==='ACCEPTED') ? `<button class="btn-secondary" data-cancel="${o.id}">Отменить</button>` : ''}
+            ${(o.status==='NEW'||o.status==='ACCEPTED')
+              ? `<button class="btn" data-reschedule="${o.id}" data-service="${o.serviceId}">Переназначить</button>`
+              : `<button class="btn" data-reorder="${o.serviceId}">Повторить</button>`}
+            <a class="btn-secondary" href="/service.html?id=${o.serviceId}">Подробнее</a>
+          </div>
+        `;
+        const c = el.querySelector('[data-cancel]');
+        if(c) c.onclick = ()=> cancelOrder(o.id, async ()=> { await loadOrders(); renderMiniKPI(); drawOrders(); });
+        const rescheduleBtn = el.querySelector('[data-reschedule]');
+        if(rescheduleBtn) rescheduleBtn.onclick = ()=> reorder(o.serviceId, o.id);
+        const reorderBtn = el.querySelector('[data-reorder]');
+        if(reorderBtn) reorderBtn.onclick = ()=> reorder(o.serviceId);
+        grid.append(el);
+      });
+
+      if (pendingFocusOrderId) {
+        const target = grid.querySelector(`[data-order-id="${pendingFocusOrderId}"]`);
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          setTimeout(()=> target.classList.remove('is-highlighted'), 4500);
+          pendingFocusOrderId = null;
+          syncUrl();
+        }
+      }
+    }
+
+    async function cancelOrder(id, after){
+      try{
+        await API.orders.setStatus(id,'CANCELLED','');
+        await loadOrders();
+        renderMiniKPI();
+        await window.AGRUS?.refreshNotifications?.();
+        toast('Заказ отменён');
+        if(typeof after==='function') after(); else renderOverview();
+      }catch{
+        toast('Не удалось отменить заказ');
+      }
+    }
+
+    let timer=null;
+    function toast(text){
+      const t = q('#toast'); t.textContent = text; t.style.display='block';
+      clearTimeout(timer); timer = setTimeout(()=> t.style.display='none', 3000);
+    }
+  </script>
+</body>
+</html>

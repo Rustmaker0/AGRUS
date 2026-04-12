@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Вход / Регистрация — АГРУС</title>
+  <link rel="stylesheet" href="/styles.css"/>
+  <style>
+    .auth-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:14px 16px; align-items:start; }
+    .auth-field { min-width:0; display:grid; grid-template-rows:auto 48px 20px; align-content:start; }
+    .auth-field label { margin:0 0 8px; min-height:22px; }
+    .auth-field input, .auth-field select { min-height:48px; margin:0; }
+    .auth-form-error { margin-top:4px; min-height:20px; }
+    .auth-help-link { font-weight:700; }
+    @media (max-width: 680px){ .auth-grid { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body id="page-login">
+  <main class="container" style="max-width:720px">
+    <div class="card">
+      <div class="card-title">
+        <h1 id="authTitle">Вход</h1>
+        <button id="toggleMode" class="btn-secondary" type="button">Регистрация</button>
+      </div>
+
+      <!-- Форма входа -->
+      <form id="loginForm" class="form" novalidate autocomplete="on">
+        <div>
+          <label for="loginEmail">Email</label>
+          <input id="loginEmail" type="email" placeholder="you@example.com" />
+          <div id="loginEmailError" class="error"></div>
+        </div>
+        <div>
+          <label for="loginPassword">Пароль</label>
+          <input id="loginPassword" type="password" minlength="4" placeholder="••••" />
+          <div id="loginPasswordError" class="error"></div>
+        </div>
+        <div class="row" style="justify-content: flex-end">
+          <button id="loginButton" class="btn" type="submit">Войти</button>
+        </div>
+      </form>
+
+      <!-- Форма регистрации -->
+      <form id="registerForm" class="form hidden" novalidate autocomplete="off">
+        <div class="auth-grid">
+          <div class="auth-field">
+            <label for="regName">Имя</label>
+            <input id="regName" type="text" placeholder="Иван"/>
+            <div id="regNameError" class="error"></div>
+          </div>
+          <div class="auth-field">
+            <label for="regRole">Роль</label>
+            <select id="regRole">
+              <option value="">— выберите роль —</option>
+              <option value="client">Клиент</option>
+              <option value="master">Мастер</option>
+            </select>
+            <div id="regRoleError" class="error"></div>
+          </div>
+        </div>
+
+        <div>
+          <label for="regEmail">Email</label>
+          <input id="regEmail" type="email" placeholder="you@example.com" />
+          <div id="regEmailError" class="error"></div>
+        </div>
+
+        <div class="auth-grid">
+          <div class="auth-field">
+            <label for="regPassword">Пароль</label>
+            <input id="regPassword" type="password" minlength="4" placeholder="••••" />
+            <div id="regPasswordError" class="error"></div>
+          </div>
+          <div class="auth-field">
+            <label for="regPassword2">Повтор пароля</label>
+            <input id="regPassword2" type="password" minlength="4" placeholder="••••" />
+            <div id="regPassword2Error" class="error"></div>
+          </div>
+        </div>
+
+        <div id="registerFormError" class="error auth-form-error"></div>
+        <div class="row" style="justify-content: flex-end">
+          <button id="registerButton" class="btn" type="submit">Зарегистрироваться</button>
+        </div>
+      </form>
+
+      <p class="help" id="authHelp" style="margin-top:8px">Нет аккаунта? Нажмите «Регистрация».</p>
+    </div>
+  </main>
+
+  <script src="/app.js"></script>
+  <script>
+    const q  = (s)=>document.querySelector(s), qa=(s)=>document.querySelectorAll(s);
+    const MIN_PASSWORD_LENGTH = 4;
+
+    function setRegisterFormError(message=""){ q("#registerFormError").textContent = message; }
+
+    function isEmail(str, el){
+      if(!str) return false;
+      const v = String(str).trim().toLowerCase().replace(/\s+/g, "");
+      const soft = /^[^@\s]+@[^@\s]+\.[^@\s]+$/i.test(v);
+      if(soft) return true;
+      try { if (el && typeof el.checkValidity === "function") return el.checkValidity(); } catch(_) {}
+      return false;
+    }
+
+    const $login    = q("#loginForm");
+    const $register = q("#registerForm");
+    const $title    = q("#authTitle");
+    const $toggle   = q("#toggleMode");
+    const $help     = q("#authHelp");
+
+    function renderHelp(isLogin){
+      $help.innerHTML = isLogin
+        ? 'Нет аккаунта? Нажмите <a href="?mode=register" class="auth-help-link" data-auth-mode="register">«Регистрация»</a>.'
+        : 'Есть аккаунт? Нажмите <a href="?mode=login" class="auth-help-link" data-auth-mode="login">«Вход»</a>.';
+    }
+
+    function setMode(mode){
+      const isLogin = mode === "login";
+      $login.classList.toggle("hidden", !isLogin);
+      $register.classList.toggle("hidden", isLogin);
+      $title.textContent = isLogin ? "Вход" : "Регистрация";
+      $toggle.textContent = isLogin ? "Регистрация" : "Вход";
+      renderHelp(isLogin);
+      qa(".error").forEach(el=> el.textContent = "");
+      history.replaceState(null, "", isLogin ? "?mode=login" : "?mode=register");
+    }
+    const url = new URL(location.href);
+    setMode(url.searchParams.get("mode") === "register" ? "register" : "login");
+    $toggle.addEventListener("click", ()=>{
+      const nowLogin = !$login.classList.contains("hidden");
+      setMode(nowLogin ? "register" : "login");
+    });
+    $help.addEventListener("click", (e)=>{
+      const link = e.target.closest("[data-auth-mode]");
+      if(!link) return;
+      e.preventDefault();
+      setMode(link.dataset.authMode);
+    });
+
+    function showLoginHints(force = false){
+      const el = q("#loginEmail");
+      const password = q("#loginPassword").value.trim();
+      const ok = isEmail(el.value, el);
+      q("#loginEmailError").textContent = (!el.value && !force) || ok ? "" : "Некорректный email";
+      q("#loginPasswordError").textContent = (!password && !force) || password.length >= MIN_PASSWORD_LENGTH ? "" : `Минимум ${MIN_PASSWORD_LENGTH} символа`;
+    }
+    function showRegisterHints(force = false){
+      const el = q("#regEmail");
+      const ok = isEmail(el.value, el);
+      const p1 = q("#regPassword").value.trim();
+      const p2 = q("#regPassword2").value.trim();
+      const role = q("#regRole").value;
+      q("#regEmailError").textContent = (!el.value && !force) || ok ? "" : "Некорректный email";
+      q("#regPasswordError").textContent = (!p1 && !force) || p1.length >= MIN_PASSWORD_LENGTH ? "" : `Минимум ${MIN_PASSWORD_LENGTH} символа`;
+      q("#regPassword2Error").textContent = (!p2 && !force) || p1 === p2 ? "" : "Пароли должны совпадать";
+      q("#regRoleError").textContent = role ? "" : (force ? "Выберите роль" : "");
+      q("#regNameError").textContent = (!q("#regName").value.trim() && force) ? "Введите имя" : "";
+    }
+    qa("#loginEmail, #loginPassword").forEach(el => el.addEventListener("input", showLoginHints));
+    qa("#regEmail, #regPassword, #regPassword2, #regRole, #regName").forEach(el => el.addEventListener("input", ()=>{ showRegisterHints(); setRegisterFormError(""); }));
+
+    // submit: вход
+    $login.addEventListener("submit", async (e)=>{
+      e.preventDefault(); showLoginHints(true);
+      const emailEl = q("#loginEmail");
+      const email = String(emailEl.value||"").trim().toLowerCase();
+      const pass  = q("#loginPassword").value.trim();
+      if(!isEmail(email, emailEl) || pass.length < MIN_PASSWORD_LENGTH) return;
+      try{
+        const { token, user } = await API.login(email, pass);
+        setToken(token);
+        location.href = user.role === "master" ? "/master.html" : "/client.html";  /* <-- ЛК клиента */
+      }catch{ q("#loginEmailError").textContent = "Неверный email или пароль"; }
+    });
+
+    // submit: регистрация
+    $register.addEventListener("submit", async (e)=>{
+      e.preventDefault(); showRegisterHints(true);
+      const emailEl = q("#regEmail");
+      const name  = q("#regName").value.trim();
+      const email = String(emailEl.value||"").trim().toLowerCase();
+      const p1    = q("#regPassword").value.trim();
+      const p2    = q("#regPassword2").value.trim();
+      const role  = q("#regRole").value;
+      const valid = !!name && isEmail(email, emailEl) && p1.length >= MIN_PASSWORD_LENGTH && p1 === p2 && !!role;
+      if(!valid) return;
+      try{
+        setRegisterFormError("");
+        const { token, user } = await API.register({ name, email, password: p1, role });
+        setToken(token);
+        location.href = user.role === "master" ? "/master.html" : "/client.html";  /* <-- ЛК клиента */
+      }catch(err){
+        if(err?.details?.code === "EMAIL_EXISTS") q("#regEmailError").textContent = "Почта уже зарегистрирована";
+        else if(err?.details?.code === "PASSWORD_TOO_SHORT") {
+          q("#regPasswordError").textContent = `Пароль слишком короткий. Минимум ${MIN_PASSWORD_LENGTH} символа`;
+          setRegisterFormError(`Пароль должен содержать минимум ${MIN_PASSWORD_LENGTH} символа.`);
+        }
+        else if(err?.details?.code === "INVALID_ROLE") q("#regRoleError").textContent = "Выберите роль";
+        else setRegisterFormError(err?.message || "Ошибка регистрации");
+      }
+    });
+  </script>
+</body>
+</html>

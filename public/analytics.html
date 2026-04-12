@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Аналитика — АГРУС</title>
+  <link rel="stylesheet" href="/styles.css"/>
+  <style>
+    .toolbar { position:sticky; top:0; z-index:4; background:#f8fafc; padding:10px 0; }
+    .controls { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .group { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+    .chip{ border:1px solid var(--border); background:#fff; border-radius:999px; padding:6px 10px; cursor:pointer; color:#0f172a; font-weight:600; line-height:1; }
+    .chip.active{ background:var(--primary-weak); color:var(--primary); border-color:var(--primary); }
+    .divider { height:28px; width:1px; background:var(--border); }
+    .period { display:flex; gap:6px; align-items:center; }
+    .summary { display:flex; gap:14px; align-items:center; flex-wrap:wrap; color:var(--muted); }
+    .kpis { display:grid; grid-template-columns: repeat(4,1fr); gap:12px; }
+    @media (max-width:1100px){ .kpis { grid-template-columns: repeat(2,1fr);} }
+    @media (max-width:640px){ .kpis { grid-template-columns: 1fr;} }
+    .kpi { background:#fff; border:1px solid var(--border); border-radius:14px; padding:12px; box-shadow: var(--shadow); }
+    .kpi .v { font-size:1.8rem; font-weight:800; }
+    .grid2 { display:grid; grid-template-columns: 1.15fr .85fr; gap:12px; }
+    @media (max-width:1100px){ .grid2 { grid-template-columns: 1fr;} }
+    .panel { background:#fff; border:1px solid var(--border); border-radius:14px; padding:12px; box-shadow: var(--shadow); }
+    .panel h3 { margin:0 0 8px; }
+    .muted { color:var(--muted); }
+    .table { width:100%; border-collapse:collapse; }
+    .table th,.table td{ padding:8px; border-bottom:1px solid var(--border); text-align:left; }
+    .right { margin-left:auto; }
+    .tagline { font-weight:600; }
+    .empty { border:1px dashed var(--border); border-radius:12px; padding:14px; text-align:center; color:var(--muted); }
+    .legend { display:flex; flex-wrap:wrap; gap:10px 16px; margin-top:8px; }
+    .legend-item { display:flex; align-items:center; gap:8px; font-size:.95rem; }
+    .legend-dot { width:12px; height:12px; border-radius:3px; border:1px solid var(--border); }
+    @media print { header nav,.toolbar{ display:none !important; } .container{ width:100%; padding:0; } .panel,.kpi{ box-shadow:none; } body{ background:#fff; } }
+  </style>
+</head>
+<body id="page-analytics">
+<main class="container">
+  <div class="card">
+    <div class="card-title">
+      <div>
+        <h1 style="margin-bottom:4px">Аналитика мастера</h1>
+        <div class="help">Интерактивные отчёты по вашим заказам</div>
+      </div>
+      <span id="hello" class="tag">—</span>
+    </div>
+  </div>
+
+  <section class="toolbar">
+    <div class="controls">
+      <div class="group" aria-label="Быстрые пресеты">
+        <button class="chip" data-preset="7d">7 дней</button>
+        <button class="chip" data-preset="30d">30 дней</button>
+        <button class="chip" data-preset="90d">90 дней</button>
+        <button class="chip" data-preset="365d">Год</button>
+        <div class="divider"></div>
+        <button class="chip" data-preset="week">Эта неделя</button>
+        <button class="chip" data-preset="month">Этот месяц</button>
+        <button class="chip" data-preset="prevMonth">Прошлый месяц</button>
+        <button class="chip" data-preset="ytd">С начала года</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="period">
+        <span class="muted">Период:</span>
+        <input id="from" class="input" type="date" style="min-width:150px"/>
+        <span class="muted">—</span>
+        <input id="to" class="input" type="date" style="min-width:150px"/>
+        <button class="btn" id="apply">Показать</button>
+      </div>
+
+      <div class="right group">
+        <button class="btn-secondary" id="refresh">Обновить</button>
+        <button class="btn" id="exportPdf">Экспорт в PDF</button>
+      </div>
+    </div>
+
+    <div class="summary" style="margin-top:8px">
+      <span class="tagline">Выбранный период:</span>
+      <span id="periodLabel">—</span>
+      <span class="divider" style="height:16px"></span>
+      <span>Заявок: <strong id="selCount">0</strong></span>
+      <span>Потенц. выручка: <strong id="selPotential">0 ₽</strong></span>
+      <span>Выручка (DONE): <strong id="selDone">0 ₽</strong></span>
+    </div>
+  </section>
+
+  <section class="kpis" id="kpis" style="margin-top:12px"></section>
+
+  <section class="grid2" style="margin-top:12px">
+    <div class="panel">
+      <h3>Динамика заявок</h3>
+      <canvas id="ordersLine" height="240" role="img" aria-label="График заявок по дням"></canvas>
+      <div class="muted" style="margin-top:6px">Количество заявок по дням выбранного диапазона.</div>
+    </div>
+    <div class="panel">
+      <h3>Статусы заявок</h3>
+      <canvas id="statusPie" height="240" role="img" aria-label="Круговая диаграмма статусов"></canvas>
+      <div id="statusLegend" class="legend"></div>
+      <div class="muted">Распределение статусов за период.</div>
+    </div>
+  </section>
+
+  <section class="grid2" style="margin-top:12px">
+    <div class="panel">
+      <h3>Топ услуг по количеству</h3>
+      <table class="table" id="topServicesCount"></table>
+    </div>
+    <div class="panel">
+      <h3>Топ услуг по выручке</h3>
+      <table class="table" id="topServicesRevenue"></table>
+    </div>
+  </section>
+</main>
+
+<script src="/app.js"></script>
+<script>
+  const q=(s)=>document.querySelector(s), qa=(s)=>document.querySelectorAll(s);
+  const pad = n=> String(n).padStart(2,'0');
+  const ymd = d => new Date(d).toISOString().slice(0,10);
+  const at0 = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const atEnd = d => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23,59,59,999);
+  const addDays = (d,n)=>{ const x=new Date(d); x.setDate(x.getDate()+n); return x; };
+  const money = n=> (Number(n||0).toFixed(2)+' ₽');
+
+  let me=null, services=[], orders=[], period={from:null,to:null};
+
+  document.addEventListener('DOMContentLoaded', init);
+
+  async function init(){
+    try { me = await API.getMe(); } catch { location.href='/login.html?mode=login'; return; }
+    if(me.role!=='master'){ location.href='/'; return; }
+    q('#hello').textContent = `${me.name||'Мастер'} (${me.email})`;
+    [services, orders] = await Promise.all([API.services.list(), API.orders.list()]);
+
+    bindUI();
+
+    // стартовый пресет выставляет даты, а первый рендер делаем вручную
+    applyPreset('30d');   // только выставляет период и подсвечивает чип
+    renderAll();          // первый расчёт и отрисовка
+  }
+
+  function bindUI(){
+    qa('[data-preset]').forEach(b=>{
+      b.addEventListener('click', ()=> applyPreset(b.dataset.preset)); // без renderAll()
+    });
+    q('#apply').onclick = ()=>{
+      const f = new Date(q('#from').value+'T00:00:00');
+      const t = new Date(q('#to').value+'T23:59:59');
+      if(isNaN(f)||isNaN(t)||f>t){ alert('Укажите корректный период'); return; }
+      setPeriod(f,t);
+      renderAll();
+    };
+    q('#refresh').onclick = async ()=>{ orders = await API.orders.list(); renderAll(); };
+    q('#exportPdf').onclick = ()=> window.print();
+  }
+
+  function applyPreset(code){
+    const today = new Date();
+    let from, to = today;
+    const firstDay = (y,m)=> new Date(y,m,1);
+    const lastDay  = (y,m)=> new Date(y,m+1,0);
+
+    switch(code){
+      case '7d':   from = addDays(today,-6); break;
+      case '30d':  from = addDays(today,-29); break;
+      case '90d':  from = addDays(today,-89); break;
+      case '365d': from = addDays(today,-364); break;
+      case 'week': { const wd=(today.getDay()+6)%7; from=addDays(today,-wd); to=today; break; }
+      case 'month': { from=firstDay(today.getFullYear(),today.getMonth()); to=lastDay(today.getFullYear(),today.getMonth()); break; }
+      case 'prevMonth': {
+        const m=today.getMonth()-1, y=today.getFullYear(); const yy=m<0?y-1:y, mm=m<0?11:m;
+        from=firstDay(yy,mm); to=lastDay(yy,mm); break;
+      }
+      case 'ytd': { from=new Date(today.getFullYear(),0,1); to=today; break; }
+      default: from = addDays(today,-29);
+    }
+    setPeriod(from, to);
+    qa('[data-preset]').forEach(b=>b.classList.toggle('active', b.dataset.preset===code));
+    // ВАЖНО: здесь НЕ вызываем renderAll() — ждём клика «Показать»
+  }
+
+  function setPeriod(from, to){
+    period.from = at0(from);
+    period.to   = atEnd(to);
+    q('#from').value = ymd(period.from);
+    q('#to').value   = ymd(period.to);
+  }
+
+  function compute(){
+    const svcById = new Map(services.map(s=>[s.id,s]));
+    const inRange = orders.filter(o=>{
+      const dt = new Date(o.desired_datetime || o.status_date || o.createdAt);
+      return dt>=period.from && dt<=period.to;
+    });
+
+    const st = {NEW:0,ACCEPTED:0,DONE:0,REJECTED:0,CANCELLED:0};
+    let revDone=0, revPotential=0;
+    inRange.forEach(o=>{
+      st[o.status]=(st[o.status]||0)+1;
+      const price = Number(svcById.get(o.serviceId)?.price||0);
+      if(o.status==='DONE') revDone+=price;
+      if(o.status!=='REJECTED' && o.status!=='CANCELLED') revPotential+=price;
+    });
+
+    const days = {};
+    for(let d=at0(period.from); d<=period.to; d=addDays(d,1)) days[ymd(d)]=0;
+    inRange.forEach(o=>{
+      const k = ymd(new Date(o.desired_datetime || o.status_date || o.createdAt));
+      if(days[k]!==undefined) days[k]++;
+    });
+
+    const cntByService = new Map(), revByService = new Map();
+    inRange.forEach(o=>{
+      const price = Number(svcById.get(o.serviceId)?.price||0);
+      cntByService.set(o.serviceId,(cntByService.get(o.serviceId)||0)+1);
+      if(o.status==='DONE') revByService.set(o.serviceId,(revByService.get(o.serviceId)||0)+price);
+    });
+
+    const topCount = [...cntByService.entries()].sort((a,b)=>b[1]-a[1]).slice(0,10)
+      .map(([id,c])=>({ title: svcById.get(id)?.title||('Услуга #'+id), count:c }));
+    const topRevenue = [...revByService.entries()].sort((a,b)=>b[1]-a[1]).slice(0,10)
+      .map(([id,sum])=>({ title: svcById.get(id)?.title||('Услуга #'+id), sum }));
+
+    return {inRange, st, revDone, revPotential, days, topCount, topRevenue};
+  }
+
+  function renderAll(){
+    const data = compute();
+    q('#periodLabel').textContent = `${fmtHuman(period.from)} — ${fmtHuman(period.to)}`;
+    q('#selCount').textContent = data.inRange.length;
+    q('#selPotential').textContent = money(data.revPotential);
+    q('#selDone').textContent = money(data.revDone);
+
+    renderKPIs(data);
+    renderLine(data.days);
+    renderPie(data.st);
+    renderTables(data.topCount, data.topRevenue);
+  }
+
+  function renderKPIs(d){
+    const sum = [
+      {label:'Заявок за период', value:d.inRange.length},
+      {label:'Потенц. выручка', value: money(d.revPotential)},
+      {label:'Выручка (DONE)', value: money(d.revDone)},
+      {label:'Новые', value: d.st.NEW||0},
+      {label:'Приняты', value: d.st.ACCEPTED||0},
+      {label:'Выполнены', value: d.st.DONE||0},
+      {label:'Отклонены', value: d.st.REJECTED||0},
+      {label:'Отменены', value: d.st.CANCELLED||0},
+    ];
+    q('#kpis').innerHTML = sum.map(x=>`
+      <div class="kpi">
+        <div class="v">${x.value}</div>
+        <div class="muted">${x.label}</div>
+      </div>`).join('');
+  }
+
+  function renderTables(topCount, topRevenue){
+    const t1=q('#topServicesCount'), t2=q('#topServicesRevenue');
+    t1.innerHTML = topCount.length
+      ? `<tr><th>Услуга</th><th>Заявок</th></tr>` +
+        topCount.map(r=> `<tr><td>${esc(r.title)}</td><td>${r.count}</td></tr>`).join('')
+      : `<tr><td class="empty">Нет данных за период</td></tr>`;
+    t2.innerHTML = topRevenue.length
+      ? `<tr><th>Услуга</th><th>Выручка (DONE)</th></tr>` +
+        topRevenue.map(r=> `<tr><td>${esc(r.title)}</td><td>${money(r.sum)}</td></tr>`).join('')
+      : `<tr><td class="empty">Нет данных за период</td></tr>`;
+  }
+
+  function renderLine(series){
+    const canvas=q('#ordersLine'), ctx=canvas.getContext('2d');
+    const W=canvas.width=canvas.clientWidth, H=canvas.height;
+    ctx.clearRect(0,0,W,H);
+    const keys=Object.keys(series), vals=keys.map(k=>series[k]);
+    if(!keys.length){ ctx.fillText('Нет данных',10,20); return; }
+    const max=Math.max(1,...vals), L=40,R=10,T=10,B=28, w=W-L-R,h=H-T-B;
+
+    ctx.strokeStyle='#cbd5e1'; ctx.beginPath(); ctx.moveTo(L,T); ctx.lineTo(L,H-B); ctx.lineTo(W-R,H-B); ctx.stroke();
+    ctx.fillStyle='#64748b'; ctx.font='12px ui-sans-serif, system-ui';
+    const yTicks=4;
+    for(let i=0;i<=yTicks;i++){
+      const v=Math.round(max*i/yTicks), y=T+h-h*i/yTicks;
+      ctx.fillText(String(v),6,y+4);
+      ctx.strokeStyle='#f1f5f9'; ctx.beginPath(); ctx.moveTo(L,y); ctx.lineTo(W-R,y); ctx.stroke();
+    }
+
+    ctx.strokeStyle='#2563eb'; ctx.lineWidth=2; ctx.beginPath();
+    keys.forEach((k,i)=>{
+      const x=L+w*(i/(keys.length-1||1));
+      const y=T+h-(h*(series[k]/max));
+      i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+    });
+    ctx.stroke();
+
+    ctx.fillStyle='#64748b';
+    const step=Math.max(1,Math.floor(keys.length/6));
+    keys.forEach((k,i)=>{
+      if(i%step && i!==0 && i!==keys.length-1) return;
+      const x=L+w*(i/(keys.length-1||1));
+      ctx.fillText(k.slice(5), x-16, H-8);
+    });
+  }
+
+  function renderPie(st){
+    const canvas=q('#statusPie'), ctx=canvas.getContext('2d');
+    const W=canvas.width=canvas.clientWidth, H=canvas.height;
+    ctx.clearRect(0,0,W,H);
+
+    const palette = {
+      NEW:'#6366f1',
+      ACCEPTED:'#0ea5e9',
+      DONE:'#16a34a',
+      REJECTED:'#ef4444',
+      CANCELLED:'#f59e0b'
+    };
+
+    const parts = ['NEW','ACCEPTED','DONE','REJECTED','CANCELLED']
+      .map(k=>({k, v:st[k]||0, c:palette[k]}));
+    const total=parts.reduce((s,p)=>s+p.v,0);
+    if(!total){ ctx.fillStyle='#64748b'; ctx.fillText('Нет данных за период',10,20); q('#statusLegend').innerHTML=''; return; }
+
+    let ang=-Math.PI/2, cx=W/2, cy=H/2, r=Math.min(W,H)*0.38;
+    parts.forEach(p=>{
+      if(p.v===0) return;
+      const a=2*Math.PI*(p.v/total);
+      ctx.beginPath(); ctx.moveTo(cx,cy); ctx.fillStyle=p.c; ctx.arc(cx,cy,r,ang,ang+a); ctx.fill();
+      ang+=a;
+    });
+
+    const leg = q('#statusLegend');
+    leg.innerHTML = parts
+      .filter(p=>p.v>0)
+      .map(p=>`
+        <span class="legend-item">
+          <span class="legend-dot" style="background:${p.c}"></span>
+          <span>${p.k} — ${p.v}</span>
+        </span>`).join('');
+  }
+
+  function esc(s){ return String(s||'').replace(/[&<>"']/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
+  function fmtHuman(d){
+    const months=["янв","фев","мар","апр","май","июн","июл","авг","сен","окт","ноя","дек"];
+    return `${pad(d.getDate())} ${months[d.getMonth()]} ${d.getFullYear()}`;
+  }
+</script>
+</body>
+</html>
