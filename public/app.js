@@ -4,7 +4,106 @@
 // Токен теперь хранится в httpOnly cookie, JavaScript не может его получить
 // Эти функции оставлены для обратной совместимости, но не используются
 const TOKEN_KEY = "agrus_token";
+// ===== ЗАЩИТА ОТ DOM-BASED XSS (БЕЗ БЛОКИРОВКИ НЕОБХОДИМОГО КОДА) =====
 
+(function protectDOM() {
+    // Сохраняем оригинальные методы
+    const originalSetAttribute = Element.prototype.setAttribute;
+    const originalCreateElement = document.createElement;
+    
+    // Список опасных событий (только события, не блокируем обычные атрибуты)
+    const dangerousEvents = ['onload', 'onerror', 'onclick', 'onmouseover', 'onmouseout',
+                             'onfocus', 'onblur', 'onchange', 'onsubmit', 'onreset',
+                             'onkeydown', 'onkeypress', 'onkeyup', 'ondblclick',
+                             'onmousedown', 'onmouseup', 'onmousemove', 'oncontextmenu'];
+    
+    const dangerousProtocols = ['javascript:', 'data:text/html', 'vbscript:', 'file:'];
+    
+    // Белый список безопасных тегов для innerHTML
+    const safeTagsPattern = /^(<div|<span|<a|<button|<h[1-6]|<p|<strong|<em|<ul|<li|<nav|<header|<main|<section|<form|<input|<label|<select|<option|<table|<tr|<td|<th|<tbody|<thead|<img|<br|<hr)/i;
+    
+    // Перехват setAttribute (только для опасных атрибутов)
+    Element.prototype.setAttribute = function(name, value) {
+        const nameLower = String(name).toLowerCase();
+        const valueStr = String(value).toLowerCase();
+        
+        // Блокируем только опасные события
+        if (dangerousEvents.includes(nameLower)) {
+            console.warn(`[XSS Protection] Блокировка опасного атрибута события: ${name}=${value}`);
+            return;
+        }
+        
+        // Блокируем опасные протоколы в href и src
+        if ((nameLower === 'href' || nameLower === 'src') && 
+            dangerousProtocols.some(p => valueStr.startsWith(p))) {
+            console.warn(`[XSS Protection] Блокировка опасного протокола: ${name}=${value}`);
+            value = '#';
+        }
+        
+        originalSetAttribute.call(this, name, value);
+    };
+    
+    // Перехват createElement (только для действительно опасных тегов)
+    document.createElement = function(tagName) {
+        const tagLower = String(tagName).toLowerCase();
+        
+        // Блокируем только самые опасные теги
+        if (tagLower === 'script' || tagLower === 'iframe' || tagLower === 'object' || tagLower === 'embed') {
+            console.warn(`[XSS Protection] Блокировка создания опасного тега: ${tagName}`);
+            return document.createElement('div');
+        }
+        
+        const element = originalCreateElement.call(document, tagName);
+        
+        // Дополнительная защита для ссылок
+        if (tagLower === 'a') {
+            const originalSetHref = element.setAttribute;
+            element.setAttribute = function(name, value) {
+                if (name === 'href') {
+                    const valueStr = String(value).toLowerCase();
+                    if (dangerousProtocols.some(p => valueStr.startsWith(p))) {
+                        console.warn(`[XSS Protection] Блокировка опасной ссылки: ${value}`);
+                        value = '#';
+                    }
+                }
+                originalSetHref.call(this, name, value);
+            };
+        }
+        
+        return element;
+    };
+    
+    // Безопасная обертка для innerHTML (разрешаем безопасный HTML)
+    const originalInnerHTML = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML');
+    if (originalInnerHTML) {
+        Object.defineProperty(Element.prototype, 'innerHTML', {
+            get: function() {
+                return originalInnerHTML.get.call(this);
+            },
+            set: function(value) {
+                if (typeof value === 'string') {
+                    // Проверка на реально опасные паттерны (не блокируем навигацию)
+                    const hasScriptTag = /<script[\s>]/i.test(value);
+                    const hasJavascriptProtocol = /javascript:/i.test(value);
+                    const hasInlineEvent = /on\w+\s*=/i.test(value);
+                    
+                    // Разрешаем HTML, если нет явно опасных паттернов
+                    if (hasScriptTag || hasJavascriptProtocol || hasInlineEvent) {
+                        console.warn('[XSS Protection] Блокировка опасного innerHTML');
+                        // Вместо полной блокировки, экранируем опасное содержимое
+                        const sanitized = value
+                            .replace(/<script[\s>]/gi, '&lt;script&gt;')
+                            .replace(/javascript:/gi, 'javascript&#58;')
+                            .replace(/on\w+\s*=/gi, 'data-on$&=');
+                        originalInnerHTML.set.call(this, sanitized);
+                        return;
+                    }
+                }
+                originalInnerHTML.set.call(this, value);
+            }
+        });
+    }
+})();
 function setToken(t) {
     // Токен устанавливается сервером через httpOnly cookie
     // Эта функция больше не нужна, но оставлена чтобы не ломался старый код

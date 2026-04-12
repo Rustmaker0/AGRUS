@@ -29,10 +29,11 @@ const loginLimiter = rateLimit({
 
 // Вспомогательная функция для безопасной установки cookie
 const setSecureCookie = (res, token) => {
+    const isProduction = process.env.NODE_ENV === 'production';
     res.cookie('token', token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        secure: isProduction,
+        sameSite: isProduction ? 'strict' : 'lax', // lax для localhost
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 дней
         path: '/'
     });
@@ -43,7 +44,7 @@ const clearSecureCookie = (res) => {
     res.clearCookie('token', {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
         path: '/'
     });
 };
@@ -83,12 +84,12 @@ router.post('/register', registerLimiter, async (req, res) => {
             return res.status(400).json({ error: 'Роль должна быть client или master', code: 'INVALID_ROLE' });
         }
         
-        // Валидация имени (не только длина, но и содержимое)
+        // Валидация имени
         if (name.length < 2 || name.length > 100) {
             return res.status(400).json({ error: 'Имя должно быть от 2 до 100 символов', code: 'INVALID_NAME' });
         }
         
-        // Защита от XSS через имя (экранируем HTML символы)
+        // Защита от XSS через имя
         const safeName = escapeHtml(name);
         
         // Валидация email
@@ -125,7 +126,7 @@ router.post('/register', registerLimiter, async (req, res) => {
             .update(password + passSalt)
             .digest('hex');
         
-        // Сохраняем пользователя с экранированным именем
+        // Сохраняем пользователя
         const result = User.create.run(role, safeName, email, passSalt, passHash);
         const userId = result.lastInsertRowid;
         
@@ -146,7 +147,7 @@ router.post('/register', registerLimiter, async (req, res) => {
         // Устанавливаем безопасную cookie
         setSecureCookie(res, token);
         
-        // Отправляем ответ (без токена в теле)
+        // Отправляем ответ
         res.status(201).json({
             message: 'Пользователь успешно зарегистрирован',
             user: {
@@ -174,13 +175,13 @@ router.post('/login', loginLimiter, async (req, res) => {
         
         // Валидация email
         if (!isValidEmail(email)) {
-            return res.status(401).json({ error: 'Неверный email или пароль' }); // Не уточняем причину
+            await new Promise(resolve => setTimeout(resolve, 100));
+            return res.status(401).json({ error: 'Неверный email или пароль' });
         }
         
         // Ищем пользователя
         const user = User.findByEmail.get(email);
         if (!user) {
-            // Задержка для предотвращения атак по времени
             await new Promise(resolve => setTimeout(resolve, 100));
             return res.status(401).json({ error: 'Неверный email или пароль' });
         }
@@ -206,8 +207,10 @@ router.post('/login', loginLimiter, async (req, res) => {
         const expiresInMs = 7 * 24 * 60 * 60 * 1000;
         const expiresAt = Date.now() + expiresInMs;
         
-        // Удаляем старые сессии пользователя (опционально)
-        Session.deleteByUserId?.run(user.id);
+        // Удаляем старые сессии пользователя
+        if (Session.deleteByUserId) {
+            Session.deleteByUserId.run(user.id);
+        }
         
         // Сохраняем новую сессию
         Session.create.run(token, user.id, expiresAt);
@@ -215,7 +218,7 @@ router.post('/login', loginLimiter, async (req, res) => {
         // Устанавливаем безопасную cookie
         setSecureCookie(res, token);
         
-        // Санитизируем данные пользователя перед отправкой
+        // Санитизируем данные пользователя
         const safeUser = sanitizeUserData(user);
         
         res.json({
@@ -231,7 +234,6 @@ router.post('/login', loginLimiter, async (req, res) => {
 // Выход из системы
 router.post('/logout', async (req, res) => {
     try {
-        // Получаем токен из cookie или заголовка
         let token = req.cookies?.token;
         
         if (!token) {
@@ -239,12 +241,10 @@ router.post('/logout', async (req, res) => {
             token = authHeader && authHeader.split(' ')[1];
         }
         
-        if (token) {
-            // Удаляем сессию из БД
+        if (token && Session.deleteByToken) {
             Session.deleteByToken.run(token);
         }
         
-        // Очищаем cookie
         clearSecureCookie(res);
         
         res.json({ message: 'Выход выполнен успешно' });
@@ -254,7 +254,7 @@ router.post('/logout', async (req, res) => {
     }
 });
 
-// Проверка токена (для фронтенда)
+// Проверка токена (для фронтенда) - ИСПРАВЛЕНА
 router.get('/verify', async (req, res) => {
     try {
         let token = req.cookies?.token;
@@ -268,14 +268,22 @@ router.get('/verify', async (req, res) => {
             return res.status(401).json({ authenticated: false });
         }
         
-        // Проверяем сессию в БД
-        const session = Session.findByToken?.get(token);
-        if (!session || session.expiresAt < Date.now()) {
+        // Исправлено: передаём текущее время для проверки
+        const now = Date.now();
+        const session = Session.findByToken?.get(token, now);
+        
+        if (!session || session.expiresAt < now) {
             return res.status(401).json({ authenticated: false });
         }
         
         // Декодируем токен
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        let decoded;
+        try {
+            decoded = jwt.verify(token, process.env.JWT_SECRET);
+        } catch (jwtError) {
+            console.error('Ошибка верификации JWT:', jwtError.message);
+            return res.status(401).json({ authenticated: false });
+        }
         
         // Получаем пользователя
         const user = User.findById?.get(decoded.userId);
