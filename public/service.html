@@ -31,19 +31,95 @@
 
     /* Слоты дня */
     .day-panel { background:#fff; border:1px solid var(--border); border-radius:14px; box-shadow: var(--shadow); padding:12px; }
-    .slots { display:grid; grid-template-columns: repeat(auto-fill, minmax(130px,1fr)); gap:8px; margin-top:8px; }
-    .slot { padding:8px 10px; border:1px solid var(--border); border-radius:10px; background:#fff; cursor:pointer; text-align:center; font-size:0.9rem; }
-    .slot.busy { background:#fee2e2; border-color:#fecaca; color:#991b1b; cursor:not-allowed; }
-    .slot.off { background:#f1f5f9; color:#94a3b8; cursor:not-allowed; }
-    .slot.past { background:#f8fafc; color:#94a3b8; cursor:not-allowed; }
-    .slot.free:hover { background: var(--primary-weak); border-color: var(--primary); }
-    .slot.selected { background: var(--primary); border-color: var(--primary); color:#fff; }
+    .slots { 
+      display:grid; 
+      grid-template-columns: repeat(auto-fill, minmax(130px,1fr)); 
+      gap:8px; 
+      margin-top:8px; 
+      position: relative; 
+    }
+    .slot { 
+      padding:8px 10px; 
+      border:1px solid var(--border); 
+      border-radius:10px; 
+      background:#fff; 
+      cursor:pointer; 
+      text-align:center; 
+      font-size:0.9rem; 
+      position: relative;
+    }
+    .slot.busy { 
+      background:#fee2e2; 
+      border-color:#fecaca; 
+      color:#991b1b; 
+      cursor:not-allowed; 
+    }
+    .slot.busy:hover::after {
+      content: "Уже занято";
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1e293b;
+      color: white;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      white-space: nowrap;
+      z-index: 10;
+      margin-bottom: 5px;
+    }
+    .slot.off { 
+      background:#f1f5f9; 
+      color:#94a3b8; 
+      cursor:not-allowed; 
+    }
+    .slot.past { 
+      background:#f1f5f9; 
+      border-color:#cbd5e1; 
+      color:#64748b; 
+      cursor:not-allowed; 
+      text-decoration: line-through;
+    }
+    .slot.past:hover::after {
+      content: "Время уже прошло";
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1e293b;
+      color: white;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      white-space: nowrap;
+      z-index: 10;
+      margin-bottom: 5px;
+    }
+    .slot.free:hover { 
+      background: var(--primary-weak); 
+      border-color: var(--primary); 
+    }
+    .slot.selected { 
+      background: var(--primary); 
+      border-color: var(--primary); 
+      color:#fff; 
+    }
 
     .svc-price { font-size:1.6rem; font-weight:800; }
     .svc-meta { color:var(--muted); }
 
     .alert { background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; padding:10px 12px; border-radius:10px; margin-top:10px; }
     .debug-info { font-size:0.8rem; color:#64748b; margin-top:5px; display:none; }
+
+    /* ===== СТИЛИ ДЛЯ TEXTAREA КОММЕНТАРИЯ ===== */
+    textarea#comment {
+      resize: vertical;        /* Разрешаем растягивать только вниз */
+      min-height: 80px;        /* Минимальная высота */
+      max-height: 300px;       /* Максимальная высота, чтобы не сломать вёрстку */
+      width: 100%;             /* Занимает всю ширину контейнера */
+      line-height: 1.5;        /* Удобная высота строки */
+    }
   </style>
 </head>
 <body id="page-service">

@@ -21,7 +21,6 @@ const isValidCategoryName = (name) => {
     if (!name || typeof name !== 'string') return false;
     const trimmed = name.trim();
     if (trimmed.length < 2 || trimmed.length > 100) return false;
-    // Запрещаем опасные символы, но разрешаем буквы, цифры, пробелы и базовую пунктуацию
     const safeRegex = /^[а-яА-Яa-zA-Z0-9\s\-.,!?()]+$/u;
     return safeRegex.test(trimmed);
 };
@@ -33,9 +32,7 @@ router.get('/', (req, res) => {
             SELECT * FROM categories ORDER BY name
         `).all();
         
-        // Санитизируем все категории перед отправкой
         const safeCategories = categories.map(sanitizeCategory);
-        
         res.json(safeCategories);
     } catch (error) {
         console.error('Ошибка получения категорий:', error);
@@ -48,7 +45,6 @@ router.get('/:id', (req, res) => {
     try {
         const categoryId = parseInt(req.params.id);
         
-        // Валидация ID
         if (isNaN(categoryId) || categoryId <= 0) {
             return res.status(400).json({ error: 'Неверный идентификатор категории' });
         }
@@ -61,7 +57,6 @@ router.get('/:id', (req, res) => {
             return res.status(404).json({ error: 'Категория не найдена' });
         }
         
-        // Получаем количество услуг в этой категории
         const servicesCount = db.prepare(`
             SELECT COUNT(*) as count FROM services WHERE categoryId = ?
         `).get(categoryId);
@@ -82,6 +77,7 @@ router.get('/:id', (req, res) => {
 router.post('/', authenticateToken, requireMaster, (req, res) => {
     try {
         const { name } = req.body;
+        const masterId = req.user.id;  // <-- ДОБАВЛЕНО: получаем ID мастера
         
         if (!name || typeof name !== 'string') {
             return res.status(400).json({ error: 'Название категории обязательно' });
@@ -89,14 +85,12 @@ router.post('/', authenticateToken, requireMaster, (req, res) => {
         
         const trimmedName = name.trim();
         
-        // Валидация имени категории
         if (!isValidCategoryName(trimmedName)) {
             return res.status(400).json({ 
                 error: 'Название категории должно содержать от 2 до 100 символов и только буквы, цифры, пробелы и базовую пунктуацию' 
             });
         }
         
-        // Экранируем имя перед сохранением
         const safeName = escapeHtml(trimmedName);
         
         // Проверяем, существует ли уже такая категория
@@ -108,8 +102,11 @@ router.post('/', authenticateToken, requireMaster, (req, res) => {
             return res.status(400).json({ error: 'Категория с таким названием уже существует' });
         }
         
-        // Создаем категорию
-        const result = Category.create.run(safeName);
+        // СОЗДАЕМ КАТЕГОРИЮ С ПРИВЯЗКОЙ К МАСТЕРУ
+        const result = db.prepare(`
+            INSERT INTO categories (name, masterId) VALUES (?, ?)
+        `).run(safeName, masterId);
+        
         const newCategory = db.prepare('SELECT * FROM categories WHERE id = ?').get(result.lastInsertRowid);
         const safeCategory = sanitizeCategory(newCategory);
         
@@ -125,8 +122,8 @@ router.put('/:id', authenticateToken, requireMaster, (req, res) => {
     try {
         const categoryId = parseInt(req.params.id);
         const { name } = req.body;
+        const masterId = req.user.id;  // <-- ДОБАВЛЕНО: получаем ID мастера
         
-        // Валидация ID
         if (isNaN(categoryId) || categoryId <= 0) {
             return res.status(400).json({ error: 'Неверный идентификатор категории' });
         }
@@ -137,7 +134,6 @@ router.put('/:id', authenticateToken, requireMaster, (req, res) => {
         
         const trimmedName = name.trim();
         
-        // Валидация имени категории
         if (!isValidCategoryName(trimmedName)) {
             return res.status(400).json({ 
                 error: 'Название категории должно содержать от 2 до 100 символов и только буквы, цифры, пробелы и базовую пунктуацию' 
@@ -145,12 +141,17 @@ router.put('/:id', authenticateToken, requireMaster, (req, res) => {
         }
         
         // Проверяем существование категории
-        const category = Category.getById.get(categoryId);
+        const category = db.prepare(`SELECT * FROM categories WHERE id = ?`).get(categoryId);
+        
         if (!category) {
             return res.status(404).json({ error: 'Категория не найдена' });
         }
         
-        // Экранируем имя
+        // ПРОВЕРКА ПРАВ: только свою категорию или если masterId = NULL (старые общие)
+        if (category.masterId !== null && category.masterId !== masterId) {
+            return res.status(403).json({ error: 'Вы можете редактировать только свои категории' });
+        }
+        
         const safeName = escapeHtml(trimmedName);
         
         // Проверяем, не занято ли новое имя другой категорией
@@ -163,8 +164,9 @@ router.put('/:id', authenticateToken, requireMaster, (req, res) => {
         }
         
         // Обновляем категорию
-        Category.update.run(safeName, categoryId);
-        const updatedCategory = Category.getById.get(categoryId);
+        db.prepare(`UPDATE categories SET name = ? WHERE id = ?`).run(safeName, categoryId);
+        
+        const updatedCategory = db.prepare(`SELECT * FROM categories WHERE id = ?`).get(categoryId);
         const safeCategory = sanitizeCategory(updatedCategory);
         
         res.json(safeCategory);
@@ -178,16 +180,22 @@ router.put('/:id', authenticateToken, requireMaster, (req, res) => {
 router.delete('/:id', authenticateToken, requireMaster, (req, res) => {
     try {
         const categoryId = parseInt(req.params.id);
+        const masterId = req.user.id;  // <-- ДОБАВЛЕНО: получаем ID мастера
         
-        // Валидация ID
         if (isNaN(categoryId) || categoryId <= 0) {
             return res.status(400).json({ error: 'Неверный идентификатор категории' });
         }
         
         // Проверяем существование категории
-        const category = Category.getById.get(categoryId);
+        const category = db.prepare(`SELECT * FROM categories WHERE id = ?`).get(categoryId);
+        
         if (!category) {
             return res.status(404).json({ error: 'Категория не найдена' });
+        }
+        
+        // ПРОВЕРКА ПРАВ: только свою категорию или если masterId = NULL (старые общие)
+        if (category.masterId !== null && category.masterId !== masterId) {
+            return res.status(403).json({ error: 'Вы можете удалять только свои категории' });
         }
         
         // Проверяем, есть ли услуги в этой категории
@@ -203,7 +211,7 @@ router.delete('/:id', authenticateToken, requireMaster, (req, res) => {
         }
         
         // Удаляем категорию
-        Category.delete.run(categoryId);
+        db.prepare(`DELETE FROM categories WHERE id = ?`).run(categoryId);
         
         res.json({ 
             message: 'Категория успешно удалена',

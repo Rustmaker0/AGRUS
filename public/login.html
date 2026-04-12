@@ -104,7 +104,21 @@
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
     }
-
+(async function checkAlreadyLoggedIn() {
+    try {
+        const user = await API.getMe();
+        if (user) {
+            // Если пользователь уже залогинен, сразу уводим его
+            if (user.role === 'master') {
+                location.href = '/master.html';
+            } else {
+                location.href = '/client.html';
+            }
+        }
+    } catch (e) {
+        // Пользователь не залогинен, это нормально, ничего не делаем
+    }
+})();
     function setRegisterFormError(message = "") {
         const errorEl = q("#registerFormError");
         if (errorEl) errorEl.textContent = message;

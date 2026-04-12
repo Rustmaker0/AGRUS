@@ -159,6 +159,10 @@ function assertSlotFree(masterId, desiredISO, options = {}) {
             endTotal += 24 * 60;
         }
 
+        if (endTotal - startTotal < slotMinutes) {
+            continue; // Пропускаем слишком короткий интервал
+        }
+        
         if (currentMinutes >= startTotal && currentMinutes + slotMinutes <= endTotal) {
             slotFitsSchedule = true;
             break;
@@ -166,8 +170,23 @@ function assertSlotFree(masterId, desiredISO, options = {}) {
     }
 
     if (!slotFitsSchedule) {
-        throw Object.assign(new Error('Выбранное время вне рабочего графика'), { status: 400, code: 'SLOT_NOT_IN_SCHEDULE' });
+    // Уточняем сообщение об ошибке
+    const totalWorkMinutes = intervals.reduce((sum, [s, e]) => {
+        const [sh, sm] = s.split(':').map(Number);
+        const [eh, em] = e.split(':').map(Number);
+        let duration = (eh * 60 + em) - (sh * 60 + sm);
+        if (duration < 0) duration += 24 * 60;
+        return sum + duration;
+    }, 0);
+    
+    if (totalWorkMinutes < slotMinutes) {
+        throw Object.assign(new Error(
+            `Длительность слота (${slotMinutes} мин) превышает общее рабочее время в этот день (${totalWorkMinutes} мин)`
+        ), { status: 400, code: 'SLOT_DURATION_EXCEEDS_WORKTIME' });
     }
+    
+    throw Object.assign(new Error('Выбранное время вне рабочего графика'), { status: 400, code: 'SLOT_NOT_IN_SCHEDULE' });
+}
 
     const slotStart = getPseudoUtcComparableTimestamp(desiredISO);
     const slotEnd = slotStart + slotMinutes * 60 * 1000;

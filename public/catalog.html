@@ -268,8 +268,13 @@
       
       if (minPriceInput) {
         minPriceInput.oninput = (e) => {
-          const v = e.target.value;
-          filter.min = v === '' ? null : Number(v);
+          let v = e.target.value;
+          let num = v === '' ? null : Number(v);
+          // Если число отрицательное, ставим null
+          if (num !== null && num < 0) num = null;
+          filter.min = num;
+          // Обновляем поле ввода, чтобы пользователь видел пустое поле
+          if (num === null) minPriceInput.value = '';
           page = 1;
           pushURL();
           applyFiltersAndDraw();
@@ -278,8 +283,11 @@
       
       if (maxPriceInput) {
         maxPriceInput.oninput = (e) => {
-          const v = e.target.value;
-          filter.max = v === '' ? null : Number(v);
+          let v = e.target.value;
+          let num = v === '' ? null : Number(v);
+          if (num !== null && num < 0) num = null;
+          filter.max = num;
+          if (num === null) maxPriceInput.value = '';
           page = 1;
           pushURL();
           applyFiltersAndDraw();

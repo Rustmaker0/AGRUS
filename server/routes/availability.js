@@ -305,20 +305,21 @@ router.get('/:masterId/slots', (req, res) => {
         const maxSlots = 100; // Ограничение на количество слотов
         
         for (const [start, end] of intervals) {
-            if (slots.length >= maxSlots) break;
-            
-            const [startHour, startMin] = start.split(':').map(Number);
-            const [endHour, endMin] = end.split(':').map(Number);
-            
-            const startTotal = startHour * 60 + startMin;
-            let endTotal = endHour * 60 + endMin;
-            
-            // Если время окончания меньше времени начала, значит это следующий день
-            if (endTotal < startTotal) {
-                endTotal += 24 * 60;
-            }
-            
-            for (let minutes = startTotal; minutes + slotMinutes <= endTotal && slots.length < maxSlots; minutes += slotMinutes) {
+        const [startHour, startMin] = start.split(':').map(Number);
+        const [endHour, endMin] = end.split(':').map(Number);
+        
+        const startTotal = startHour * 60 + startMin;
+        let endTotal = endHour * 60 + endMin;
+        
+        if (endTotal < startTotal) {
+            endTotal += 24 * 60;
+        }
+
+        if (endTotal - startTotal < slotMinutes) {
+            continue;
+        }        
+        
+        for (let minutes = startTotal; minutes + slotMinutes <= endTotal; minutes += slotMinutes) {
                 const currentHour = Math.floor(minutes / 60) % 24;
                 const currentMin = minutes % 60;
                 

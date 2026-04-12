@@ -13,9 +13,9 @@
     @media (max-width: 1060px){ .sched-grid{ grid-template-columns: 1fr; } }
 
     .day-row{ border:1px solid var(--border); border-radius:12px; padding:10px; margin-bottom:10px; background:#fff; }
-    .day-head{ display:flex; align-items:center; gap:10px; justify-content:space-between; flex-wrap:wrap; }
+    .day-head{ display:flex; align-items:center; gap:10px; justify-content:space-between; flex-wrap:wrap; flex-shrink: 0;}
     .day-title{ font-weight:800; }
-    .day-toggle{ display:flex; align-items:center; gap:8px; }
+    .day-toggle{ display:flex; align-items:center; gap:8px; white-space: nowrap;}
     .intervals{ display:flex; flex-direction:column; gap:8px; margin-top:10px; }
     .int-row{ display:flex; gap:8px; align-items:center; }
     .int-row input[type=time]{ width:120px; }
@@ -391,7 +391,7 @@
             <div class="row">
               <div style="flex:1">
                 <label for="svcPrice">Цена, ₽</label>
-                <input id="svcPrice" class="input" type="number" min="1" step="1" placeholder="от 1"/>
+                <input id="svcPrice" class="input" type="number" min="1" max="10000000" step="1" placeholder="от 1"/>
                 <div id="svcPriceErr" class="error"></div>
               </div>
             </div>
@@ -592,22 +592,50 @@
         editBtn.className = "btn-secondary";
         editBtn.textContent = "Изменить";
         editBtn.onclick = async () => {
-          const newTitle = prompt("Название", s.title) ?? s.title;
-          const newPrice = Number(prompt("Цена", s.price) ?? s.price);
-          const newDesc = (prompt("Описание", s.description || "") ?? s.description) || "";
+          const newTitle = prompt("Название", s.title);
+          if (newTitle === null || !newTitle.trim()) {
+            alert("Название не может быть пустым");
+            return;
+          }
+
+          const priceInput = prompt("Цена", s.price);
+          if (priceInput === null) return;
+          
+          const newPrice = Number(priceInput);
+          
+          if (isNaN(newPrice) || !Number.isFinite(newPrice)) {
+            alert("Цена должна быть числом");
+            return;
+          }
+          if (newPrice <= 0) {
+            alert("Цена должна быть больше 0 ₽");
+            return;
+          }
+          if (newPrice > 10000000) {
+            alert("Цена не может превышать 10 000 000 ₽");
+            return;
+          }
+
+          const newDesc = prompt("Описание", s.description || "");
+          if (newDesc === null) return;
+
+          // Проверка на дубликат
           if (servicesAll.some(x => x.id !== s.id && norm(x.title) === norm(newTitle) && String(x.categoryId) === String(s.categoryId))) {
             alert("Услуга с таким названием уже существует в этой категории.");
             return;
           }
+
           try {
-            if (!Number.isFinite(newPrice) || newPrice <= 0) {
-              alert('Цена должна быть больше 0 ₽');
-              return;
-            }
-            await API.services.update(s.id, { title: newTitle, price: newPrice, description: newDesc });
+            await API.services.update(s.id, { 
+              title: newTitle.trim(), 
+              price: newPrice, 
+              description: newDesc.trim() || "",
+              categoryId: s.categoryId
+            });
             await reloadServices();
           } catch (e) {
-            alert(e?.message || 'Не удалось сохранить изменения');
+            console.error("Ошибка обновления услуги:", e);
+            alert(e?.message || "Не удалось сохранить изменения");
           }
         };
         
@@ -920,7 +948,10 @@
 
       const todayStr = new Date().toISOString().slice(0, 10);
       const exDate = q("#exDate");
-      if (exDate) exDate.value = todayStr;
+      if (exDate) {
+        exDate.value = todayStr;
+        exDate.min = todayStr;  // <-- ЗАПРЕЩАЕМ ВЫБОР ПРОШЕДШИХ ДАТ
+      }
       drawExceptionEditor();
 
       const saveBtn = q("#saveSchedule");
@@ -973,7 +1004,7 @@
               <span class="day-title">${escapeHtml(t)}</span>
               <label class="day-toggle">
                 <input type="checkbox" class="day-on" ${isOn ? 'checked' : ''}/>
-                <span>${isOn ? 'Рабочий день' : 'Выходной'}</span>
+                <span>Рабочий день</span>  <!-- Текст теперь всегда "Рабочий день" -->
               </label>
             </div>
             <div class="intervals">
@@ -1057,6 +1088,7 @@
       const arr = [...(availability.weekTemplate[d] || [])];
       const errEl = q(`.day-row[data-d="${d}"] [data-err]`);
       if (errEl) errEl.textContent = "";
+      
       if (arr.length === 0) {
         delete weekErrors[d];
         return true;
@@ -1067,7 +1099,23 @@
         return (h * 60 + (m || 0));
       };
       
-      const lines = arr.map(([f, t]) => ({ f: toMin(f), t: toMin(t), s: [f, t] }))
+      // Проверяем каждый интервал на корректность (начало раньше конца)
+      for (let i = 0; i < arr.length; i++) {
+        const [from, to] = arr[i];
+        const fromMin = toMin(from);
+        const toMinVal = toMin(to);
+        
+        // Проверка: начало должно быть раньше конца
+        if (fromMin >= toMinVal) {
+          if (errEl) errEl.textContent = "Время начала должно быть раньше времени окончания.";
+          weekErrors[d] = true;
+          return false;
+        }
+      }
+      
+      // Проверка на пересечение интервалов
+      const lines = arr
+        .map(([f, t]) => ({ f: toMin(f), t: toMin(t), s: [f, t] }))
         .filter(x => Number.isFinite(x.f) && Number.isFinite(x.t) && x.f < x.t)
         .sort((a, b) => a.f - b.f);
       
@@ -1078,6 +1126,7 @@
           return false;
         }
       }
+      
       delete weekErrors[d];
       return true;
     }
@@ -1192,6 +1241,7 @@
       const arr = [...(availability.exceptions[date] || [])];
       const errEl = q("#exErr");
       if (errEl) errEl.textContent = "";
+      
       if (arr.length === 0) {
         delete exErrors[date];
         return true;
@@ -1202,7 +1252,23 @@
         return (h * 60 + (m || 0));
       };
       
-      const lines = arr.map(([f, t]) => ({ f: toMin(f), t: toMin(t) }))
+      // Проверяем каждый интервал на корректность (начало раньше конца)
+      for (let i = 0; i < arr.length; i++) {
+        const [from, to] = arr[i];
+        const fromMin = toMin(from);
+        const toMinVal = toMin(to);
+        
+        // Проверка: начало должно быть раньше конца
+        if (fromMin >= toMinVal) {
+          if (errEl) errEl.textContent = "Время начала должно быть раньше времени окончания.";
+          exErrors[date] = true;
+          return false;
+        }
+      }
+      
+      // Проверка на пересечение интервалов
+      const lines = arr
+        .map(([f, t]) => ({ f: toMin(f), t: toMin(t) }))
         .filter(x => Number.isFinite(x.f) && Number.isFinite(x.t) && x.f < x.t)
         .sort((a, b) => a.f - b.f);
       
@@ -1213,6 +1279,7 @@
           return false;
         }
       }
+      
       delete exErrors[date];
       return true;
     }

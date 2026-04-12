@@ -611,3 +611,39 @@ body.notifications-open .notifications-panel {
   }
   .notifications-head { padding: 14px; }
 }
+
+/* Защита от переполнения текста в карточках */
+.service-card,
+.card,
+.preview-card,
+.modal-body {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+
+/* Для заголовков и длинных слов */
+h1, h2, h3, h4, h5, h6,
+.service-card h3,
+.card h3,
+.modal-body div {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+/* Для описания услуги */
+.service-card p,
+#svcDesc,
+.clamp {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    max-width: 100%;
+}
+
+/* Для текста внутри кнопок */
+.btn, .btn-secondary, .btn-danger {
+    white-space: normal;
+    word-break: break-word;
+    text-align: center;
+}

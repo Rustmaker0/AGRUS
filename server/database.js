@@ -16,6 +16,19 @@ setInterval(cleanupSessions, 6 * 60 * 60 * 1000);
 
 function autoMigrateAndInitialize() {
     console.log('Проверка структуры базы данных...');
+    
+    // Проверяем, есть ли поле masterId
+    const hasMasterId = db.prepare(`
+        SELECT COUNT(*) as count 
+        FROM pragma_table_info('categories') 
+        WHERE name = 'masterId'
+    `).get().count > 0;
+    
+    if (!hasMasterId) {
+        console.log('Добавляем поле masterId в categories...');
+        db.exec(`ALTER TABLE categories ADD COLUMN masterId INTEGER REFERENCES users(id) ON DELETE SET NULL`);
+    }
+    
     createTables();
     createIndexes();
     console.log('База данных готова!');
@@ -37,8 +50,10 @@ function createTables() {
     db.exec(`
         CREATE TABLE IF NOT EXISTS categories (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT UNIQUE NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            name TEXT NOT NULL,
+            masterId INTEGER,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (masterId) REFERENCES users(id) ON DELETE SET NULL
         )
     `);
 
