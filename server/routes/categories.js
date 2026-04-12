@@ -12,6 +12,7 @@ const sanitizeCategory = (category) => {
     return {
         id: category.id,
         name: escapeHtml(String(category.name)),
+        masterId: category.masterId,
         created_at: category.created_at
     };
 };

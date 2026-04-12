@@ -279,7 +279,11 @@
         return;
       }
       
-      const countMap = myServices.reduce((m, s) => { m[s.categoryId] = (m[s.categoryId] || 0) + 1; return m; }, {});
+      const countMap = myServices.reduce((m, s) => { 
+        m[s.categoryId] = (m[s.categoryId] || 0) + 1; 
+        return m; 
+      }, {});
+      
       box.innerHTML = `<div class="card-row" id="catGrid"></div>`;
       const grid = q("#catGrid");
       if (!grid) return;
@@ -302,32 +306,39 @@
         rowDiv.className = "row";
         rowDiv.style.marginTop = "6px";
         
-        const editBtn = document.createElement("button");
-        editBtn.className = "btn-secondary";
-        editBtn.textContent = "Переименовать";
-        editBtn.onclick = async () => {
-          const newName = prompt("Новое имя категории:", c.name);
-          if (!newName) return;
-          if (categories.some(x => x.id !== c.id && norm(x.name) === norm(newName))) {
-            alert("Такая категория уже существует.");
-            return;
-          }
-          await API.categories.update(c.id, { name: newName });
-          await reloadCats(true);
-        };
+        // ПРОВЕРКА: категория создана этим мастером или это общая категория (masterId === null)
+        // Кнопки показываем только если категория принадлежит текущему мастеру
+        const isMyCategory = c.masterId === me.id;
         
-        const delBtn = document.createElement("button");
-        delBtn.className = "btn-danger";
-        delBtn.textContent = "Удалить";
-        delBtn.onclick = async () => {
-          const count = countMap[c.id] || 0;
-          if (!confirm(`Удалить категорию? Связанных ваших услуг: ${count}.`)) return;
-          await API.categories.delete(c.id);
-          await reloadCats(true);
-        };
+        if (isMyCategory) {
+          const editBtn = document.createElement("button");
+          editBtn.className = "btn-secondary";
+          editBtn.textContent = "Переименовать";
+          editBtn.onclick = async () => {
+            const newName = prompt("Новое имя категории:", c.name);
+            if (!newName) return;
+            if (categories.some(x => x.id !== c.id && norm(x.name) === norm(newName))) {
+              alert("Такая категория уже существует.");
+              return;
+            }
+            await API.categories.update(c.id, { name: newName });
+            await reloadCats(true);
+          };
+          
+          const delBtn = document.createElement("button");
+          delBtn.className = "btn-danger";
+          delBtn.textContent = "Удалить";
+          delBtn.onclick = async () => {
+            const count = countMap[c.id] || 0;
+            if (!confirm(`Удалить категорию? Связанных ваших услуг: ${count}.`)) return;
+            await API.categories.delete(c.id);
+            await reloadCats(true);
+          };
+          
+          rowDiv.appendChild(editBtn);
+          rowDiv.appendChild(delBtn);
+        }
         
-        rowDiv.appendChild(editBtn);
-        rowDiv.appendChild(delBtn);
         infoDiv.appendChild(title);
         infoDiv.appendChild(helpP);
         infoDiv.appendChild(rowDiv);
