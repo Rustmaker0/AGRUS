@@ -16,10 +16,9 @@
     <h1>Тест сохранения расписания</h1>
     
     <div class="section">
-        <h3>Шаг 1: Получите токен мастера</h3>
-        <p>Войдите как мастер и скопируйте токен из localStorage (F12 → Application → Local Storage)</p>
-        <input type="text" id="token" placeholder="Вставьте токен мастера" style="width: 500px;">
-        <button onclick="checkToken()">Проверить токен</button>
+        <h3>Шаг 1: Проверка аутентификации</h3>
+        <p>Токен теперь в httpOnly cookie. Войдите как мастер на сайте, затем нажмите "Проверить сессию"</p>
+        <button onclick="checkSession()">Проверить сессию</button>
         <pre id="tokenResult"></pre>
     </div>
     
@@ -50,18 +49,27 @@
     </div>
     
     <script>
-        async function checkToken() {
-            const token = document.getElementById('token').value;
+        // Вспомогательная функция для fetch с credentials
+        async function fetchWithCreds(url, options = {}) {
+            return fetch(url, {
+                ...options,
+                credentials: 'include'
+            });
+        }
+        
+        async function checkSession() {
             const result = document.getElementById('tokenResult');
             
             try {
-                const response = await fetch('/api/users/me', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
+                const response = await fetchWithCreds('/api/users/me');
                 const data = await response.json();
                 result.innerHTML = `Статус: ${response.status}\n\n${JSON.stringify(data, null, 2)}`;
+                if (response.ok) {
+                    result.classList.add('success');
+                }
             } catch (e) {
                 result.innerHTML = 'Ошибка: ' + e.message;
+                result.classList.add('error');
             }
         }
         
@@ -79,7 +87,6 @@
         }
         
         async function setSchedule() {
-            const token = document.getElementById('token').value;
             const masterId = document.getElementById('masterId').value;
             const schedule = JSON.parse(document.getElementById('scheduleJson').value);
             const result = document.getElementById('setResult');
@@ -88,9 +95,9 @@
                 const response = await fetch(`/api/availability/${masterId}`, {
                     method: 'PUT',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
+                        'Content-Type': 'application/json'
                     },
+                    credentials: 'include',
                     body: JSON.stringify(schedule)
                 });
                 const data = await response.json();

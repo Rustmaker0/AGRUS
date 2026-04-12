@@ -35,15 +35,15 @@
     .ok { color:#067647; }
     .warn { color:#b54708; }
     .modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; z-index:50; }
-.modal{ background:#fff; border:1px solid var(--border); border-radius:14px; box-shadow:var(--shadow); width:min(720px, 92vw); }
-.modal .modal-head{ display:flex; align-items:center; justify-content:space-between; padding:12px 14px; border-bottom:1px solid var(--border); }
-.modal .modal-body{ padding:12px 14px; display:grid; gap:10px; }
-.modal .modal-row{ display:grid; grid-template-columns: 180px 1fr; gap:10px; align-items:start; }
-@media (max-width: 560px){ .modal .modal-row{ grid-template-columns: 1fr; } }
-.modal .modal-actions{ display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; padding:10px 14px; border-top:1px solid var(--border); }
-
+    .modal{ background:#fff; border:1px solid var(--border); border-radius:14px; box-shadow:var(--shadow); width:min(720px, 92vw); }
+    .modal .modal-head{ display:flex; align-items:center; justify-content:space-between; padding:12px 14px; border-bottom:1px solid var(--border); }
+    .modal .modal-body{ padding:12px 14px; display:grid; gap:10px; }
+    .modal .modal-row{ display:grid; grid-template-columns: 180px 1fr; gap:10px; align-items:start; }
+    @media (max-width: 560px){ .modal .modal-row{ grid-template-columns: 1fr; } }
+    .modal .modal-actions{ display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; padding:10px 14px; border-top:1px solid var(--border); }
 
     .card .subtle { color: var(--muted); font-size:.95rem; }
+    .is-highlighted { background: #e0f2fe !important; border: 2px solid #0284c7 !important; transition: all 0.3s ease; }
   </style>
 </head>
 <!-- === Order details modal === -->
@@ -51,7 +51,7 @@
   <div class="modal" role="document">
     <div class="modal-head">
       <h3 id="ordTitle" style="margin:0">Заказ</h3>
-      <button class="btn-secondary" onclick="document.getElementById('orderBackdrop').style.display='none'">×</button>
+      <button class="btn-secondary" id="closeOrderModal">×</button>
     </div>
     <div class="modal-body">
       <div class="modal-row"><div class="help">Услуга</div><div id="ordService">—</div></div>
@@ -106,10 +106,7 @@
 
     <!-- Контент -->
     <div class="col-2" style="margin-top:12px">
-      <!-- Левая колонка (меняется по вкладке) -->
       <section id="leftCol" class="card"></section>
-
-      <!-- Правая колонка (меняется по вкладке) -->
       <section id="rightCol" class="card"></section>
     </div>
   </main>
@@ -117,9 +114,10 @@
   <script src="/app.js"></script>
   <script>
     // ========= helpers & state
-    const q = (s)=>document.querySelector(s), qa=(s)=>document.querySelectorAll(s);
+    const q = (s) => document.querySelector(s);
+    const qa = (s) => document.querySelectorAll(s);
     const statusNames = { NEW:"Новые", ACCEPTED:"Принятые", DONE:"Выполненные", REJECTED:"Отклонённые", CANCELLED:"Отменённые" };
-    const norm = (v)=> String(v||"").trim().replace(/\s+/g," ").toLowerCase();
+    const norm = (v) => String(v || "").trim().replace(/\s+/g, " ").toLowerCase();
 
     let me = null;
     let categories = [];
@@ -131,24 +129,31 @@
     let orderFilter = "ALL";
     let pendingOpenOrderId = null;
 
-    // расписание
     const DOW = [
       {i:1, t:"Понедельник"}, {i:2, t:"Вторник"}, {i:3, t:"Среда"},
       {i:4, t:"Четверг"}, {i:5, t:"Пятница"}, {i:6, t:"Суббота"}, {i:0, t:"Воскресенье"}
     ];
-    let availability = null;        // {slotMinutes, weekTemplate:{0..6:[[from,to],...]}, exceptions:{"YYYY-MM-DD":[[from,to],...]}}
-    let weekErrors = {};            // по дням ошибки перекрытий
-    let exErrors = {};              // по датам ошибки перекрытий
+    let availability = null;
+    let weekErrors = {};
+    let exErrors = {};
     let saveMsgTimer = null;
+
+    // Закрытие модального окна
+    document.getElementById("closeOrderModal")?.addEventListener("click", () => {
+      document.getElementById("orderBackdrop").style.display = "none";
+    });
 
     document.addEventListener("DOMContentLoaded", init);
 
-    async function init(){
+    async function init() {
       try {
         me = await API.getMe();
-        if(me.role !== "master") return location.href = "/";
-        q("#masterName").textContent = (me.name||"Мастер") + " (" + me.email + ")";
-      } catch (_) { return location.href="/login.html?mode=login"; }
+        if (me.role !== "master") return location.href = "/";
+        const nameSpan = q("#masterName");
+        if (nameSpan) nameSpan.textContent = escapeHtml((me.name || "Мастер") + " (" + me.email + ")");
+      } catch (_) {
+        return location.href = "/login.html?mode=login";
+      }
 
       hydrateMasterStateFromUrl();
       bindTabs();
@@ -157,16 +162,16 @@
       renderTab();
     }
 
-    function hydrateMasterStateFromUrl(){
+    function hydrateMasterStateFromUrl() {
       const url = new URL(location.href);
-      const allowed = new Set(["categories","create","services","orders","schedule"]);
+      const allowed = new Set(["categories", "create", "services", "orders", "schedule"]);
       const requestedTab = url.searchParams.get('tab');
       currentTab = allowed.has(requestedTab) ? requestedTab : 'categories';
       const orderId = Number(url.searchParams.get('orderId') || 0);
       pendingOpenOrderId = Number.isInteger(orderId) && orderId > 0 ? orderId : null;
     }
 
-    function syncMasterUrl(){
+    function syncMasterUrl() {
       const url = new URL(location.href);
       url.searchParams.set('tab', currentTab);
       if (pendingOpenOrderId) url.searchParams.set('orderId', String(pendingOpenOrderId));
@@ -174,13 +179,13 @@
       history.replaceState(null, '', url);
     }
 
-    function activateTabButton(tabName){
-      qa(".tab").forEach(x=>x.classList.toggle("active", x.dataset.tab === tabName));
+    function activateTabButton(tabName) {
+      qa(".tab").forEach(x => x.classList.toggle("active", x.dataset.tab === tabName));
     }
 
-    function bindTabs(){
-      qa(".tab").forEach(b=>{
-        b.addEventListener("click", ()=>{
+    function bindTabs() {
+      qa(".tab").forEach(b => {
+        b.addEventListener("click", () => {
           currentTab = b.dataset.tab;
           activateTabButton(currentTab);
           syncMasterUrl();
@@ -190,240 +195,311 @@
       activateTabButton(currentTab);
     }
 
-    async function loadAll(){
+    async function loadAll() {
       const [cats, services, orders, kpi] = await Promise.all([
         API.categories.list(),
         API.services.list(),
         API.orders.list(),
-        API.analytics.summary().catch(()=>({total:0,NEW:0,ACCEPTED:0,DONE:0}))
+        API.analytics.summary().catch(() => ({ total: 0, NEW: 0, ACCEPTED: 0, DONE: 0 }))
       ]);
       categories = cats;
       servicesAll = services;
-      myServices = services.filter(s=> s.masterId === me.id);
+      myServices = services.filter(s => s.masterId === me.id);
       myOrders = orders;
 
-      q("#summary").innerHTML = [
+      const summaryHtml = [
         ["Категорий", categories.length],
         ["Моих услуг", myServices.length],
-        ["Всего заказов", kpi.total||0],
-        ["Новые", kpi.NEW||0],
-        ["Принятые", kpi.ACCEPTED||0],
-        ["Выполнены", kpi.DONE||0]
-      ].map(([l,v])=> `<div class="stat-card"><div class="stat-number">${v}</div><div class="stat-label">${l}</div></div>`).join("");
+        ["Всего заказов", kpi.total || 0],
+        ["Новые", kpi.NEW || 0],
+        ["Принятые", kpi.ACCEPTED || 0],
+        ["Выполнены", kpi.DONE || 0]
+      ].map(([l, v]) => `<div class="stat-card"><div class="stat-number">${v}</div><div class="stat-label">${escapeHtml(l)}</div></div>`).join("");
+      
+      const summaryDiv = q("#summary");
+      if (summaryDiv) summaryDiv.innerHTML = summaryHtml;
 
-      // подгружаем расписание мастера
-      availability = await API.availability.get(me.id).catch(()=> defaultAvailability());
+      availability = await API.availability.get(me.id).catch(() => defaultAvailability());
       normalizeAvailability();
     }
 
-    async function updateKPI(){
-      const k = await API.analytics.summary().catch(()=>({total:0,NEW:0,ACCEPTED:0,DONE:0}));
-      q("#summary").innerHTML = [
+    async function updateKPI() {
+      const k = await API.analytics.summary().catch(() => ({ total: 0, NEW: 0, ACCEPTED: 0, DONE: 0 }));
+      const summaryHtml = [
         ["Категорий", categories.length],
         ["Моих услуг", myServices.length],
-        ["Всего заказов", k.total||0],
-        ["Новые", k.NEW||0],
-        ["Принятые", k.ACCEPTED||0],
-        ["Выполнены", k.DONE||0]
-      ].map(([l,v])=> `<div class="stat-card"><div class="stat-number">${v}</div><div class="stat-label">${l}</div></div>`).join("");
+        ["Всего заказов", k.total || 0],
+        ["Новые", k.NEW || 0],
+        ["Принятые", k.ACCEPTED || 0],
+        ["Выполнены", k.DONE || 0]
+      ].map(([l, v]) => `<div class="stat-card"><div class="stat-number">${v}</div><div class="stat-label">${escapeHtml(l)}</div></div>`).join("");
+      
+      const summaryDiv = q("#summary");
+      if (summaryDiv) summaryDiv.innerHTML = summaryHtml;
     }
 
-    function renderTab(){
-      if(currentTab === "categories") return renderCategoriesTab();
-      if(currentTab === "create")     return renderCreateServiceTab();
-      if(currentTab === "services")   return renderMyServicesTab();
-      if(currentTab === "orders")     return renderOrdersTab();
-      if(currentTab === "schedule")   return renderScheduleTab();
+    function renderTab() {
+      if (currentTab === "categories") return renderCategoriesTab();
+      if (currentTab === "create") return renderCreateServiceTab();
+      if (currentTab === "services") return renderMyServicesTab();
+      if (currentTab === "orders") return renderOrdersTab();
+      if (currentTab === "schedule") return renderScheduleTab();
     }
 
-    // ========= CATEGORIES
-    function renderCategoriesTab(){
-      // LEFT: создание с проверкой дублей
-      q("#leftCol").innerHTML = `
-        <div class="card-title"><h2>Создать категорию</h2></div>
-        <div class="form">
-          <div>
-            <label for="newCatName">Название категории</label>
-            <input id="newCatName" class="input" placeholder="Например: Сантехника / Установка смесителей"/>
-            <div id="newCatErr" class="error"></div>
+    // ========= CATEGORIES (БЕЗОПАСНАЯ ВЕРСИЯ) =========
+    function renderCategoriesTab() {
+      const leftCol = q("#leftCol");
+      if (leftCol) {
+        leftCol.innerHTML = `
+          <div class="card-title"><h2>Создать категорию</h2></div>
+          <div class="form">
+            <div>
+              <label for="newCatName">Название категории</label>
+              <input id="newCatName" class="input" placeholder="Например: Сантехника / Установка смесителей"/>
+              <div id="newCatErr" class="error"></div>
+            </div>
+            <div class="row" style="justify-content:flex-end">
+              <button class="btn" id="addCat">Добавить</button>
+            </div>
+            <p class="help">Проверка на совпадение выполняется автоматически (без учёта регистра и лишних пробелов).</p>
           </div>
-          <div class="row" style="justify-content:flex-end">
-            <button class="btn" id="addCat">Добавить</button>
-          </div>
-          <p class="help">Проверка на совпадение выполняется автоматически (без учёта регистра и лишних пробелов).</p>
-        </div>
-      `;
-      q("#addCat").onclick = onCreateCategory;
-
-      // RIGHT: список категорий
+        `;
+        const addBtn = q("#addCat");
+        if (addBtn) addBtn.onclick = onCreateCategory;
+      }
       drawCategories();
     }
 
-    function drawCategories(){
+    function drawCategories() {
       const box = q("#rightCol");
-      if(!categories.length){
+      if (!box) return;
+      
+      if (!categories.length) {
         box.innerHTML = `<div class="empty">Категории отсутствуют. Создайте первую слева.</div>`;
         return;
       }
-      const countMap = myServices.reduce((m,s)=>{ m[s.categoryId]=(m[s.categoryId]||0)+1; return m; },{});
+      
+      const countMap = myServices.reduce((m, s) => { m[s.categoryId] = (m[s.categoryId] || 0) + 1; return m; }, {});
       box.innerHTML = `<div class="card-row" id="catGrid"></div>`;
       const grid = q("#catGrid");
-      categories.forEach(c=>{
-        const d = document.createElement("div");
-        d.className="card";
-        d.innerHTML = `
-          <div class="info">
-            <h3>${c.name}</h3>
-            <p class="help">${countMap[c.id]||0} моих услуг</p>
-            <div class="row" style="margin-top:6px">
-              <button class="btn-secondary" data-edit="${c.id}">Переименовать</button>
-              <button class="btn-danger" data-del="${c.id}">Удалить</button>
-            </div>
-          </div>`;
-        d.querySelector('[data-edit]').onclick = async ()=>{
-          const name = prompt("Новое имя категории:", c.name);
-          if(!name) return;
-          if(categories.some(x=> x.id!==c.id && norm(x.name)===norm(name))){
+      if (!grid) return;
+      
+      categories.forEach(c => {
+        const card = document.createElement("div");
+        card.className = "card";
+        
+        const infoDiv = document.createElement("div");
+        infoDiv.className = "info";
+        
+        const title = document.createElement("h3");
+        title.textContent = escapeHtml(c.name);
+        
+        const helpP = document.createElement("p");
+        helpP.className = "help";
+        helpP.textContent = `${countMap[c.id] || 0} моих услуг`;
+        
+        const rowDiv = document.createElement("div");
+        rowDiv.className = "row";
+        rowDiv.style.marginTop = "6px";
+        
+        const editBtn = document.createElement("button");
+        editBtn.className = "btn-secondary";
+        editBtn.textContent = "Переименовать";
+        editBtn.onclick = async () => {
+          const newName = prompt("Новое имя категории:", c.name);
+          if (!newName) return;
+          if (categories.some(x => x.id !== c.id && norm(x.name) === norm(newName))) {
             alert("Такая категория уже существует.");
             return;
           }
-          await API.categories.update(c.id, {name});
+          await API.categories.update(c.id, { name: newName });
           await reloadCats(true);
         };
-        d.querySelector('[data-del]').onclick = async ()=>{
-          const count = countMap[c.id]||0;
-          if(!confirm(`Удалить категорию? Связанных ваших услуг: ${count}.`)) return;
+        
+        const delBtn = document.createElement("button");
+        delBtn.className = "btn-danger";
+        delBtn.textContent = "Удалить";
+        delBtn.onclick = async () => {
+          const count = countMap[c.id] || 0;
+          if (!confirm(`Удалить категорию? Связанных ваших услуг: ${count}.`)) return;
           await API.categories.delete(c.id);
           await reloadCats(true);
         };
-        grid.append(d);
+        
+        rowDiv.appendChild(editBtn);
+        rowDiv.appendChild(delBtn);
+        infoDiv.appendChild(title);
+        infoDiv.appendChild(helpP);
+        infoDiv.appendChild(rowDiv);
+        card.appendChild(infoDiv);
+        grid.appendChild(card);
       });
     }
 
-    async function onCreateCategory(){
-      const name = (q("#newCatName").value||"").trim();
-      const err = q("#newCatErr");
-      err.textContent = "";
-      if(!name){ err.textContent="Введите название"; return; }
-      if(categories.some(c => norm(c.name) === norm(name))){
-        err.textContent = "Такая категория уже существует.";
+    async function onCreateCategory() {
+      const nameInput = q("#newCatName");
+      const errSpan = q("#newCatErr");
+      if (!nameInput || !errSpan) return;
+      
+      const name = (nameInput.value || "").trim();
+      errSpan.textContent = "";
+      
+      if (!name) {
+        errSpan.textContent = "Введите название";
+        return;
+      }
+      if (categories.some(c => norm(c.name) === norm(name))) {
+        errSpan.textContent = "Такая категория уже существует.";
         return;
       }
       await API.categories.create(name);
-      q("#newCatName").value="";
+      nameInput.value = "";
       await reloadCats();
-      err.textContent = "";
+      errSpan.textContent = "";
     }
 
-    async function reloadCats(alsoReloadServices=false){
+    async function reloadCats(alsoReloadServices = false) {
       categories = await API.categories.list();
-      if(alsoReloadServices){
+      if (alsoReloadServices) {
         servicesAll = await API.services.list();
-        myServices = servicesAll.filter(s=> s.masterId === me.id);
+        myServices = servicesAll.filter(s => s.masterId === me.id);
       }
       drawCategories();
       await updateKPI();
     }
 
-    // ========= CREATE SERVICE
-    function renderCreateServiceTab(){
-      // LEFT: форма (сначала выбор категории → затем поля)
-      q("#leftCol").innerHTML = `
-        <div class="card-title"><h2>Создать услугу</h2></div>
-        <div class="form" id="svcForm">
-          <div>
-            <label for="svcCat">Категория</label>
-            <select id="svcCat" class="input">
-              <option value="">— выберите категорию —</option>
-              ${categories.map(c=> `<option value="${c.id}">${c.name}</option>`).join("")}
-            </select>
-            <div id="svcCatErr" class="error"></div>
-          </div>
-
-          <div>
-            <label for="svcTitle">Название услуги</label>
-            <input id="svcTitle" class="input" placeholder="Например: Установка смесителя"/>
-            <div id="svcTitleErr" class="error"></div>
-          </div>
-
-          <div class="row">
-            <div style="flex:1">
-              <label for="svcPrice">Цена, ₽</label>
-              <input id="svcPrice" class="input" type="number" min="1" step="1" placeholder="от 1"/>
-              <div id="svcPriceErr" class="error"></div>
+    // ========= CREATE SERVICE (БЕЗОПАСНАЯ ВЕРСИЯ) =========
+    function renderCreateServiceTab() {
+      const leftCol = q("#leftCol");
+      if (leftCol) {
+        leftCol.innerHTML = `
+          <div class="card-title"><h2>Создать услугу</h2></div>
+          <div class="form" id="svcForm">
+            <div>
+              <label for="svcCat">Категория</label>
+              <select id="svcCat" class="input">
+                <option value="">— выберите категорию —</option>
+                ${categories.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("")}
+              </select>
+              <div id="svcCatErr" class="error"></div>
             </div>
+            <div>
+              <label for="svcTitle">Название услуги</label>
+              <input id="svcTitle" class="input" placeholder="Например: Установка смесителя"/>
+              <div id="svcTitleErr" class="error"></div>
+            </div>
+            <div class="row">
+              <div style="flex:1">
+                <label for="svcPrice">Цена, ₽</label>
+                <input id="svcPrice" class="input" type="number" min="1" step="1" placeholder="от 1"/>
+                <div id="svcPriceErr" class="error"></div>
+              </div>
+            </div>
+            <div>
+              <label for="svcDesc">Описание</label>
+              <textarea id="svcDesc" class="input" rows="6" placeholder="Что входит в услугу, условия, регион, исключения и т.д."></textarea>
+              <div id="svcDescErr" class="error"></div>
+            </div>
+            <div id="svcFormErr" class="error"></div>
+            <p class="help">Справа — предпросмотр карточки с вашими текущими данными.</p>
           </div>
+        `;
+      }
 
-          <div>
-            <label for="svcDesc">Описание</label>
-            <textarea id="svcDesc" class="input" rows="6"
-              placeholder="Что входит в услугу, условия, регион, исключения и т.д."></textarea>
-            <div id="svcDescErr" class="error"></div>
+      const rightCol = q("#rightCol");
+      if (rightCol) {
+        rightCol.innerHTML = `
+          <div class="preview-card">
+            <div class="preview-head">
+              <h2>Предпросмотр</h2>
+              <button class="btn" id="createSvcBtn">Создать</button>
+            </div>
+            <div id="preview" class="service-card">
+              <h3>(название)</h3>
+              <p>(описание)</p>
+              <p class="price"><strong>0.00 ₽</strong></p>
+              <p class="help">(категория)</p>
+            </div>
+            <div id="createMsg" class="ok"></div>
           </div>
+        `;
+      }
 
-          <div id="svcFormErr" class="error"></div>
-          <p class="help">Справа — предпросмотр карточки с вашими текущими данными.</p>
-        </div>
-      `;
-
-      // RIGHT: предпросмотр + создать
-      q("#rightCol").innerHTML = `
-        <div class="preview-card">
-          <div class="preview-head">
-            <h2>Предпросмотр</h2>
-            <button class="btn" id="createSvcBtn">Создать</button>
-          </div>
-          <div id="preview" class="service-card">
-            <h3>(название)</h3>
-            <p>(описание)</p>
-            <p class="price"><strong>0.00 ₽</strong></p>
-            <p class="help">(категория)</p>
-          </div>
-          <div id="createMsg" class="ok"></div>
-        </div>
-      `;
-
-      ['svcCat','svcTitle','svcPrice','svcDesc'].forEach(id=>{
-        q("#"+id).addEventListener('input', drawPreview);
+      ['svcCat', 'svcTitle', 'svcPrice', 'svcDesc'].forEach(id => {
+        const el = q("#" + id);
+        if (el) el.addEventListener('input', drawPreview);
       });
       drawPreview();
 
-      q("#createSvcBtn").onclick = onCreateService;
+      const createBtn = q("#createSvcBtn");
+      if (createBtn) createBtn.onclick = onCreateService;
     }
 
-    function drawPreview(){
-      const catId = Number(q("#svcCat").value||0);
-      const title = q("#svcTitle").value.trim();
-      const price = Number(q("#svcPrice").value||0);
-      const desc  = q("#svcDesc").value.trim();
-
-      const cat = categories.find(c=> c.id===catId);
-      q("#preview").innerHTML = `
-        <h3>${title || "(название)"}</h3>
-        <p>${desc || "(описание)"}</p>
+    function drawPreview() {
+      const catSelect = q("#svcCat");
+      const titleInput = q("#svcTitle");
+      const priceInput = q("#svcPrice");
+      const descTextarea = q("#svcDesc");
+      const previewDiv = q("#preview");
+      
+      if (!previewDiv) return;
+      
+      const catId = Number(catSelect?.value || 0);
+      const title = titleInput?.value.trim() || "";
+      const price = Number(priceInput?.value || 0);
+      const desc = descTextarea?.value.trim() || "";
+      
+      const cat = categories.find(c => c.id === catId);
+      
+      previewDiv.innerHTML = `
+        <h3>${escapeHtml(title || "(название)")}</h3>
+        <p>${escapeHtml(desc || "(описание)")}</p>
         <p class="price"><strong>${isFinite(price) ? price.toFixed(2) : "0.00"} ₽</strong></p>
-        <p class="help">${cat ? cat.name : "(категория)"}</p>
+        <p class="help">${cat ? escapeHtml(cat.name) : "(категория)"}</p>
       `;
     }
 
-    async function onCreateService(){
-      ["svcCatErr","svcTitleErr","svcPriceErr","svcDescErr","svcFormErr","createMsg"].forEach(id=> q("#"+id).textContent="");
+    async function onCreateService() {
+      const errorIds = ["svcCatErr", "svcTitleErr", "svcPriceErr", "svcDescErr", "svcFormErr", "createMsg"];
+      errorIds.forEach(id => {
+        const el = q("#" + id);
+        if (el) el.textContent = "";
+      });
 
-      const categoryId = Number(q("#svcCat").value||0);
-      const title = q("#svcTitle").value.trim();
-      const price = Number(q("#svcPrice").value||0);
-      const description = q("#svcDesc").value.trim();
+      const categoryId = Number(q("#svcCat")?.value || 0);
+      const title = q("#svcTitle")?.value.trim() || "";
+      const price = Number(q("#svcPrice")?.value || 0);
+      const description = q("#svcDesc")?.value.trim() || "";
 
       let ok = true;
-      if(!categoryId){ q("#svcCatErr").textContent="Выберите категорию"; ok = false; }
-      if(!title){ q("#svcTitleErr").textContent="Введите название"; ok = false; }
-      if(!isFinite(price) || price <= 0){ q("#svcPriceErr").textContent="Укажите стоимость больше 0 ₽"; q("#svcFormErr").textContent="Нельзя создать услугу с нулевой стоимостью."; ok = false; }
-      if(!description){ q("#svcDescErr").textContent="Добавьте описание"; ok = false; }
-      if(!ok) return;
+      if (!categoryId) {
+        const err = q("#svcCatErr");
+        if (err) err.textContent = "Выберите категорию";
+        ok = false;
+      }
+      if (!title) {
+        const err = q("#svcTitleErr");
+        if (err) err.textContent = "Введите название";
+        ok = false;
+      }
+      if (!isFinite(price) || price <= 0) {
+        const err = q("#svcPriceErr");
+        if (err) err.textContent = "Укажите стоимость больше 0 ₽";
+        const formErr = q("#svcFormErr");
+        if (formErr) formErr.textContent = "Нельзя создать услугу с нулевой стоимостью.";
+        ok = false;
+      }
+      if (!description) {
+        const err = q("#svcDescErr");
+        if (err) err.textContent = "Добавьте описание";
+        ok = false;
+      }
+      if (!ok) return;
 
-      const duplicate = servicesAll.some(s => norm(s.title)===norm(title) && String(s.categoryId)===String(categoryId));
-      if(duplicate){
-        q("#svcTitleErr").textContent = "Услуга с таким названием уже существует в этой категории.";
+      const duplicate = servicesAll.some(s => norm(s.title) === norm(title) && String(s.categoryId) === String(categoryId));
+      if (duplicate) {
+        const err = q("#svcTitleErr");
+        if (err) err.textContent = "Услуга с таким названием уже существует в этой категории.";
         return;
       }
 
@@ -431,402 +507,573 @@
         await API.services.create({ title, price, categoryId, description });
       } catch (e) {
         if (e?.details?.code === 'PRICE_MUST_BE_POSITIVE') {
-          q("#svcPriceErr").textContent = "Укажите стоимость больше 0 ₽";
-          q("#svcFormErr").textContent = "Нельзя создать услугу с нулевой стоимостью. Укажите цену больше 0 ₽.";
+          const err = q("#svcPriceErr");
+          if (err) err.textContent = "Укажите стоимость больше 0 ₽";
+          const formErr = q("#svcFormErr");
+          if (formErr) formErr.textContent = "Нельзя создать услугу с нулевой стоимостью. Укажите цену больше 0 ₽.";
         } else {
-          q("#createMsg").textContent = e?.message || "Не удалось создать услугу";
-          q("#createMsg").style.color = 'var(--danger)';
+          const msg = q("#createMsg");
+          if (msg) {
+            msg.textContent = e?.message || "Не удалось создать услугу";
+            msg.style.color = 'var(--danger)';
+          }
         }
         return;
       }
 
       servicesAll = await API.services.list();
-      myServices = servicesAll.filter(s=> s.masterId === me.id);
+      myServices = servicesAll.filter(s => s.masterId === me.id);
       await updateKPI();
 
-      q("#createMsg").textContent = "Услуга создана ✅";
-      q("#createMsg").style.color = 'var(--ok)';
-      q("#svcTitle").value=""; q("#svcPrice").value=""; q("#svcDesc").value="";
+      const msg = q("#createMsg");
+      if (msg) {
+        msg.textContent = "Услуга создана ✅";
+        msg.style.color = 'var(--ok)';
+      }
+      const titleInput = q("#svcTitle");
+      const priceInput = q("#svcPrice");
+      const descTextarea = q("#svcDesc");
+      if (titleInput) titleInput.value = "";
+      if (priceInput) priceInput.value = "";
+      if (descTextarea) descTextarea.value = "";
       drawPreview();
     }
 
-    // ========= MY SERVICES
-    function renderMyServicesTab(){
-      q("#leftCol").innerHTML = `
-        <div class="card-title"><h2>Мои услуги</h2></div>
-        <p class="help">Здесь только созданные вами услуги. Редактируйте и удаляйте при необходимости.</p>
-      `;
+    // ========= MY SERVICES (БЕЗОПАСНАЯ ВЕРСИЯ) =========
+    function renderMyServicesTab() {
+      const leftCol = q("#leftCol");
+      if (leftCol) {
+        leftCol.innerHTML = `
+          <div class="card-title"><h2>Мои услуги</h2></div>
+          <p class="help">Здесь только созданные вами услуги. Редактируйте и удаляйте при необходимости.</p>
+        `;
+      }
       drawMyServices();
     }
 
-    function drawMyServices(){
+    function drawMyServices() {
       const box = q("#rightCol");
-      if(!myServices.length){
+      if (!box) return;
+      
+      if (!myServices.length) {
         box.innerHTML = `<div class="empty">У вас ещё нет услуг. Перейдите во вкладку «Создать услугу».</div>`;
         return;
       }
+      
       box.innerHTML = `<div class="card-grid" id="svcGrid"></div>`;
       const grid = q("#svcGrid");
-      myServices.forEach(s=>{
-        const cat = categories.find(c=>c.id===s.categoryId);
-        const d = document.createElement("div");
-        d.className = "service-card";
-        d.innerHTML = `
-          <h3>${s.title}</h3>
-          <p>${s.description||""}</p>
-          <p class="price"><strong>${(s.price||0).toFixed(2)} ₽</strong></p>
-          <p class="help">${cat?cat.name:"Без категории"}</p>
-          <div class="row">
-            <button class="btn-secondary" data-edit="${s.id}">Изменить</button>
-            <button class="btn-danger" data-del="${s.id}">Удалить</button>
-          </div>`;
-        d.querySelector('[data-edit]').onclick = async ()=>{
-          const title = prompt("Название", s.title) ?? s.title;
-          const price = Number(prompt("Цена", s.price) ?? s.price);
-          const description = (prompt("Описание", s.description || "") ?? s.description) || "";
-          if(servicesAll.some(x => x.id!==s.id && norm(x.title)===norm(title) && String(x.categoryId)===String(s.categoryId))){
+      if (!grid) return;
+      
+      myServices.forEach(s => {
+        const cat = categories.find(c => c.id === s.categoryId);
+        const card = document.createElement("div");
+        card.className = "service-card";
+        
+        const title = document.createElement("h3");
+        title.textContent = escapeHtml(s.title);
+        
+        const desc = document.createElement("p");
+        desc.textContent = escapeHtml(s.description || "");
+        
+        const priceP = document.createElement("p");
+        priceP.className = "price";
+        const strong = document.createElement("strong");
+        strong.textContent = `${(s.price || 0).toFixed(2)} ₽`;
+        priceP.appendChild(strong);
+        
+        const catP = document.createElement("p");
+        catP.className = "help";
+        catP.textContent = cat ? escapeHtml(cat.name) : "Без категории";
+        
+        const rowDiv = document.createElement("div");
+        rowDiv.className = "row";
+        
+        const editBtn = document.createElement("button");
+        editBtn.className = "btn-secondary";
+        editBtn.textContent = "Изменить";
+        editBtn.onclick = async () => {
+          const newTitle = prompt("Название", s.title) ?? s.title;
+          const newPrice = Number(prompt("Цена", s.price) ?? s.price);
+          const newDesc = (prompt("Описание", s.description || "") ?? s.description) || "";
+          if (servicesAll.some(x => x.id !== s.id && norm(x.title) === norm(newTitle) && String(x.categoryId) === String(s.categoryId))) {
             alert("Услуга с таким названием уже существует в этой категории.");
             return;
           }
           try {
-            if(!Number.isFinite(price) || price <= 0){
+            if (!Number.isFinite(newPrice) || newPrice <= 0) {
               alert('Цена должна быть больше 0 ₽');
               return;
             }
-            await API.services.update(s.id, {title, price, description});
+            await API.services.update(s.id, { title: newTitle, price: newPrice, description: newDesc });
             await reloadServices();
           } catch (e) {
             alert(e?.message || 'Не удалось сохранить изменения');
           }
         };
-        d.querySelector('[data-del]').onclick = async ()=>{
-          if(!confirm("Удалить услугу?")) return;
+        
+        const delBtn = document.createElement("button");
+        delBtn.className = "btn-danger";
+        delBtn.textContent = "Удалить";
+        delBtn.onclick = async () => {
+          if (!confirm("Удалить услугу?")) return;
           await API.services.delete(s.id);
           await reloadServices();
         };
-        grid.append(d);
+        
+        rowDiv.appendChild(editBtn);
+        rowDiv.appendChild(delBtn);
+        card.appendChild(title);
+        card.appendChild(desc);
+        card.appendChild(priceP);
+        card.appendChild(catP);
+        card.appendChild(rowDiv);
+        grid.appendChild(card);
       });
     }
 
-    async function reloadServices(){
+    async function reloadServices() {
       servicesAll = await API.services.list();
-      myServices = servicesAll.filter(s=> s.masterId === me.id);
+      myServices = servicesAll.filter(s => s.masterId === me.id);
       drawMyServices();
       await updateKPI();
     }
 
-// ---------- ORDERS (замена блока) ----------
-function renderOrdersTab(){
-  q("#leftCol").innerHTML = `
-    <div class="card-title"><h2>Мои заказы</h2></div>
-    <div class="help">Нажмите «Подробнее», чтобы увидеть данные клиента, комментарии и доступные действия.</div>
-  `;
-  drawOrders();
-}
-
-async function reloadOrders(){
-  myOrders = await API.orders.list();
-  drawOrders();
-  await updateKPI();
-}
-
-function drawOrders(){
-  const box = q("#rightCol");
-  if(!myOrders.length){
-    box.innerHTML = `<div class="empty">Заказов пока нет.</div>`;
-    return;
-  }
-  box.innerHTML = `<div class="card-grid" id="ordGrid"></div>`;
-  const grid = q("#ordGrid");
-
-  myOrders
-    .slice()
-    .sort((a,b)=> getPseudoUtcComparableTimestamp(b.status_date||b.desired_datetime||0) - getPseudoUtcComparableTimestamp(a.status_date||a.desired_datetime||0))
-    .forEach(o=>{
-      const s = servicesAll.find(x=>x.id===o.serviceId) || {};
-      const whenStr = o.desired_datetime ? formatPseudoUtcDateTime(o.desired_datetime) : '—';
-
-      const el = document.createElement("div");
-      el.className="card";
-      el.dataset.orderId = String(o.id);
-      if (pendingOpenOrderId && Number(pendingOpenOrderId) === Number(o.id)) {
-        el.classList.add('is-highlighted');
+    // ========= ORDERS (БЕЗОПАСНАЯ ВЕРСИЯ) =========
+    function renderOrdersTab() {
+      const leftCol = q("#leftCol");
+      if (leftCol) {
+        leftCol.innerHTML = `
+          <div class="card-title"><h2>Мои заказы</h2></div>
+          <div class="help">Нажмите «Подробнее», чтобы увидеть данные клиента, комментарии и доступные действия.</div>
+        `;
       }
-      el.innerHTML = `
-        <div class="info">
-          <h3>${s.title || o.serviceTitle || 'Услуга'} — <span class="help">${Number(s.price || o.servicePrice || 0).toFixed(2)} ₽</span></h3>
-          <p class="help">${whenStr}</p>
-          <p>Статус: <strong>${statusLabel(o.status)}</strong></p>
-          <div class="row">
-            <button class="btn" data-more="${o.id}">Подробнее</button>
-            <button class="btn-secondary" data-accept="${o.id}">Принять</button>
-            <button class="btn-danger" data-reject="${o.id}">Отклонить</button>
-            <button class="btn-secondary" data-done="${o.id}">Выполнено</button>
-            <button class="btn-secondary" data-cancel="${o.id}">Отменить</button>
-          </div>
-        </div>
-      `;
-
-      const toggleButtons = (st)=>{
-        el.querySelectorAll("button").forEach(b=> b.disabled = true);
-        el.querySelector(`[data-more]`).disabled = false;
-        if(st==="NEW"){
-          el.querySelector('[data-accept]').disabled = false;
-          el.querySelector('[data-reject]').disabled = false;
-        } else if (st==="ACCEPTED"){
-          el.querySelector('[data-done]').disabled = false;
-          el.querySelector('[data-cancel]').disabled = false;
-        }
-      };
-      toggleButtons(o.status);
-
-      el.querySelector('[data-more]').onclick   = ()=> showOrderDetails(o.id);
-      el.querySelector('[data-accept]').onclick = ()=> updateOrder(o.id,"ACCEPTED");
-      el.querySelector('[data-reject]').onclick = ()=>{ const r=prompt("Причина отказа:")||""; updateOrder(o.id,"REJECTED",r); };
-      el.querySelector('[data-done]').onclick   = ()=> updateOrder(o.id,"DONE");
-      el.querySelector('[data-cancel]').onclick = ()=> updateOrder(o.id,"CANCELLED");
-
-      grid.append(el);
-    });
-
-  if (pendingOpenOrderId) {
-    const target = grid.querySelector(`[data-order-id="${pendingOpenOrderId}"]`);
-    if (target) {
-      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      setTimeout(() => target.classList.remove('is-highlighted'), 4500);
-      showOrderDetails(pendingOpenOrderId);
-      pendingOpenOrderId = null;
-      syncMasterUrl();
+      drawOrders();
     }
-  }
-}
 
-async function updateOrder(id, st, reason=""){
-  try{
-    await API.orders.setStatus(id, st, reason);
-    await reloadOrders();
-    await window.AGRUS?.refreshNotifications?.();
-    const mb = document.getElementById('orderBackdrop');
-    if(mb && mb.style.display==='flex'){ await showOrderDetails(id); }
-  }catch(_){
-    alert("Нельзя выполнить переход статуса.");
-  }
-}
+    async function reloadOrders() {
+      myOrders = await API.orders.list();
+      drawOrders();
+      await updateKPI();
+    }
 
-async function showOrderDetails(id){
-  let d;
-  try{
-    d = await API.orders.get(id);
-  }catch(e){
-    alert("Не удалось загрузить заказ");
-    return;
-  }
+    function drawOrders() {
+      const box = q("#rightCol");
+      if (!box) return;
+      
+      if (!myOrders.length) {
+        box.innerHTML = `<div class="empty">Заказов пока нет.</div>`;
+        return;
+      }
+      
+      box.innerHTML = `<div class="card-grid" id="ordGrid"></div>`;
+      const grid = q("#ordGrid");
+      if (!grid) return;
 
-  const whenStr = d.desired_datetime ? formatPseudoUtcDateTime(d.desired_datetime) : '—';
+      const sortedOrders = [...myOrders].sort((a, b) => 
+        getPseudoUtcComparableTimestamp(b.status_date || b.desired_datetime || 0) - 
+        getPseudoUtcComparableTimestamp(a.status_date || a.desired_datetime || 0)
+      );
 
-  q('#ordTitle').textContent      = `Заказ #${d.id}`;
-  q('#ordService').textContent    = d.serviceTitle || `Услуга #${d.serviceId}`;
-  q('#ordPrice').textContent      = `${Number(d.servicePrice||0).toFixed(2)} ₽`;
-  q('#ordWhen').textContent       = whenStr;
-  q('#ordStatus').textContent     = statusLabel(d.status);
-  q('#ordClient').textContent     = d.clientName || `Клиент #${d.clientId}`;
-  q('#ordClientEmail').textContent= d.clientEmail || '—';
-  q('#ordComment').textContent    = d.comment ? d.comment : '—';
+      sortedOrders.forEach(o => {
+        const s = servicesAll.find(x => x.id === o.serviceId) || {};
+        const whenStr = o.desired_datetime ? formatPseudoUtcDateTime(o.desired_datetime) : '—';
 
-  if(d.status==='REJECTED' && d.rejectionReason){
-    q('#ordReasonBox').style.display='grid';
-    q('#ordReason').textContent = d.rejectionReason;
-  }else{
-    q('#ordReasonBox').style.display='none';
-    q('#ordReason').textContent = '';
-  }
+        const card = document.createElement("div");
+        card.className = "card";
+        card.dataset.orderId = String(o.id);
+        if (pendingOpenOrderId && Number(pendingOpenOrderId) === Number(o.id)) {
+          card.classList.add('is-highlighted');
+        }
 
-  const actions = q('#ordActions'); actions.innerHTML='';
-  const addBtn = (text, cls, cb)=>{
-    const b=document.createElement('button'); b.className=cls; b.textContent=text; b.onclick=cb; actions.append(b);
-  };
-  if(d.status==='NEW'){
-    addBtn('Принять','btn-secondary', ()=> updateOrder(d.id,'ACCEPTED'));
-    addBtn('Отклонить','btn-danger', ()=>{ const r=prompt('Причина отказа:')||''; updateOrder(d.id,'REJECTED',r); });
-  }else if(d.status==='ACCEPTED'){
-    addBtn('Выполнено','btn-secondary', ()=> updateOrder(d.id,'DONE'));
-  }
-  addBtn('Закрыть','btn-secondary', ()=> document.getElementById('orderBackdrop').style.display='none');
+        const infoDiv = document.createElement("div");
+        infoDiv.className = "info";
 
-  const mb = document.getElementById('orderBackdrop');
-  mb.style.display='flex';
-}
+        const title = document.createElement("h3");
+        title.textContent = `${escapeHtml(s.title || o.serviceTitle || 'Услуга')} — `;
+        const priceSpan = document.createElement("span");
+        priceSpan.className = "help";
+        priceSpan.textContent = `${Number(s.price || o.servicePrice || 0).toFixed(2)} ₽`;
+        title.appendChild(priceSpan);
 
-    // ========= SCHEDULE (расписание)
-    function renderScheduleTab(){
-      q("#leftCol").innerHTML = `
-        <div class="card-title">
-          <h2>Недельное расписание</h2>
-          <span class="help">Укажите рабочие интервалы для каждого дня недели</span>
-        </div>
-        <div id="weekBox"></div>
-        <div class="save-bar">
-          <div>
-            <label>Длительность слота:</label>
-            <select id="slotMinutes" class="input" style="width:140px">
-              ${[15,20,30,45,60,90,120].map(x=> `<option value="${x}">${x} мин</option>`).join('')}
-            </select>
-            <span class="hint">Клиенты смогут выбирать такие интервалы</span>
+        const whenP = document.createElement("p");
+        whenP.className = "help";
+        whenP.textContent = whenStr;
+
+        const statusP = document.createElement("p");
+        statusP.innerHTML = `Статус: <strong>${escapeHtml(statusLabel(o.status))}</strong>`;
+
+        const rowDiv = document.createElement("div");
+        rowDiv.className = "row";
+
+        const moreBtn = document.createElement("button");
+        moreBtn.className = "btn";
+        moreBtn.textContent = "Подробнее";
+        moreBtn.onclick = () => showOrderDetails(o.id);
+
+        const acceptBtn = document.createElement("button");
+        acceptBtn.className = "btn-secondary";
+        acceptBtn.textContent = "Принять";
+        acceptBtn.onclick = () => updateOrder(o.id, "ACCEPTED");
+
+        const rejectBtn = document.createElement("button");
+        rejectBtn.className = "btn-danger";
+        rejectBtn.textContent = "Отклонить";
+        rejectBtn.onclick = () => {
+          const r = prompt("Причина отказа:") || "";
+          updateOrder(o.id, "REJECTED", r);
+        };
+
+        const doneBtn = document.createElement("button");
+        doneBtn.className = "btn-secondary";
+        doneBtn.textContent = "Выполнено";
+        doneBtn.onclick = () => updateOrder(o.id, "DONE");
+
+        const cancelBtn = document.createElement("button");
+        cancelBtn.className = "btn-secondary";
+        cancelBtn.textContent = "Отменить";
+        cancelBtn.onclick = () => updateOrder(o.id, "CANCELLED");
+
+        rowDiv.appendChild(moreBtn);
+        rowDiv.appendChild(acceptBtn);
+        rowDiv.appendChild(rejectBtn);
+        rowDiv.appendChild(doneBtn);
+        rowDiv.appendChild(cancelBtn);
+
+        infoDiv.appendChild(title);
+        infoDiv.appendChild(whenP);
+        infoDiv.appendChild(statusP);
+        infoDiv.appendChild(rowDiv);
+        card.appendChild(infoDiv);
+        grid.appendChild(card);
+
+        // Управление доступностью кнопок в зависимости от статуса
+        const buttons = { acceptBtn, rejectBtn, doneBtn, cancelBtn };
+        if (o.status === "NEW") {
+          acceptBtn.disabled = false;
+          rejectBtn.disabled = false;
+          doneBtn.disabled = true;
+          cancelBtn.disabled = true;
+        } else if (o.status === "ACCEPTED") {
+          acceptBtn.disabled = true;
+          rejectBtn.disabled = true;
+          doneBtn.disabled = false;
+          cancelBtn.disabled = false;
+        } else {
+          acceptBtn.disabled = true;
+          rejectBtn.disabled = true;
+          doneBtn.disabled = true;
+          cancelBtn.disabled = true;
+        }
+      });
+
+      if (pendingOpenOrderId) {
+        const target = grid.querySelector(`[data-order-id="${pendingOpenOrderId}"]`);
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          setTimeout(() => target.classList.remove('is-highlighted'), 4500);
+          showOrderDetails(pendingOpenOrderId);
+          pendingOpenOrderId = null;
+          syncMasterUrl();
+        }
+      }
+    }
+
+    async function updateOrder(id, status, reason = "") {
+      try {
+        await API.orders.setStatus(id, status, reason);
+        await reloadOrders();
+        await window.AGRUS?.refreshNotifications?.();
+        const mb = document.getElementById('orderBackdrop');
+        if (mb && mb.style.display === 'flex') {
+          await showOrderDetails(id);
+        }
+      } catch (_) {
+        alert("Нельзя выполнить переход статуса.");
+      }
+    }
+
+    async function showOrderDetails(id) {
+      let order;
+      try {
+        order = await API.orders.get(id);
+      } catch (e) {
+        alert("Не удалось загрузить заказ");
+        return;
+      }
+
+      const whenStr = order.desired_datetime ? formatPseudoUtcDateTime(order.desired_datetime) : '—';
+
+      const titleEl = q('#ordTitle');
+      const serviceEl = q('#ordService');
+      const priceEl = q('#ordPrice');
+      const whenEl = q('#ordWhen');
+      const statusEl = q('#ordStatus');
+      const clientEl = q('#ordClient');
+      const clientEmailEl = q('#ordClientEmail');
+      const commentEl = q('#ordComment');
+      const reasonBox = q('#ordReasonBox');
+      const reasonEl = q('#ordReason');
+
+      if (titleEl) titleEl.textContent = `Заказ #${order.id}`;
+      if (serviceEl) serviceEl.textContent = escapeHtml(order.serviceTitle || `Услуга #${order.serviceId}`);
+      if (priceEl) priceEl.textContent = `${Number(order.servicePrice || 0).toFixed(2)} ₽`;
+      if (whenEl) whenEl.textContent = whenStr;
+      if (statusEl) statusEl.textContent = escapeHtml(statusLabel(order.status));
+      if (clientEl) clientEl.textContent = escapeHtml(order.clientName || `Клиент #${order.clientId}`);
+      if (clientEmailEl) clientEmailEl.textContent = escapeHtml(order.clientEmail || '—');
+      if (commentEl) commentEl.textContent = order.comment ? escapeHtml(order.comment) : '—';
+
+      if (order.status === 'REJECTED' && order.rejectionReason) {
+        if (reasonBox) reasonBox.style.display = 'grid';
+        if (reasonEl) reasonEl.textContent = escapeHtml(order.rejectionReason);
+      } else {
+        if (reasonBox) reasonBox.style.display = 'none';
+        if (reasonEl) reasonEl.textContent = '';
+      }
+
+      const actionsDiv = q('#ordActions');
+      if (actionsDiv) {
+        actionsDiv.innerHTML = '';
+        
+        const addBtn = (text, cls, cb) => {
+          const btn = document.createElement('button');
+          btn.className = cls;
+          btn.textContent = text;
+          btn.onclick = cb;
+          actionsDiv.appendChild(btn);
+        };
+        
+        if (order.status === 'NEW') {
+          addBtn('Принять', 'btn-secondary', () => updateOrder(order.id, 'ACCEPTED'));
+          addBtn('Отклонить', 'btn-danger', () => {
+            const r = prompt('Причина отказа:') || '';
+            updateOrder(order.id, 'REJECTED', r);
+          });
+        } else if (order.status === 'ACCEPTED') {
+          addBtn('Выполнено', 'btn-secondary', () => updateOrder(order.id, 'DONE'));
+        }
+        addBtn('Закрыть', 'btn-secondary', () => {
+          document.getElementById('orderBackdrop').style.display = 'none';
+        });
+      }
+
+      const modal = document.getElementById('orderBackdrop');
+      if (modal) modal.style.display = 'flex';
+    }
+
+    // ========= SCHEDULE (расписание - безопасная версия) =========
+    function renderScheduleTab() {
+      const leftCol = q("#leftCol");
+      if (leftCol) {
+        leftCol.innerHTML = `
+          <div class="card-title">
+            <h2>Недельное расписание</h2>
+            <span class="help">Укажите рабочие интервалы для каждого дня недели</span>
           </div>
-          <div style="display:flex; gap:8px; align-items:center;">
-            <button class="btn" id="saveSchedule">Сохранить</button>
-            <span id="saveMsg" class="ok"></span>
-          </div>
-        </div>
-      `;
-
-      q("#rightCol").innerHTML = `
-        <div class="card-title">
-          <h2>Исключения по датам</h2>
-          <span class="help">Переопределите рабочие интервалы для конкретного дня (праздники, выходные, сверхурочная работа)</span>
-        </div>
-        <div class="form">
-          <div class="row">
-            <div style="flex:1">
-              <label for="exDate">Дата</label>
-              <input id="exDate" type="date" class="input"/>
+          <div id="weekBox"></div>
+          <div class="save-bar">
+            <div>
+              <label>Длительность слота:</label>
+              <select id="slotMinutes" class="input" style="width:140px">
+                ${[15, 20, 30, 45, 60, 90, 120].map(x => `<option value="${x}">${x} мин</option>`).join('')}
+              </select>
+              <span class="hint">Клиенты смогут выбирать такие интервалы</span>
             </div>
-            <div class="ex-ctrls">
-              <button class="btn-secondary" id="exAdd">Добавить интервал</button>
-              <button class="btn-danger" id="exClear">Сделать выходным</button>
-              <button class="btn-secondary" id="exCopyFromDOW">Скопировать из недели</button>
-              <button class="btn-secondary" id="exRemove">Удалить исключение</button>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <button class="btn" id="saveSchedule">Сохранить</button>
+              <span id="saveMsg" class="ok"></span>
             </div>
           </div>
-          <div id="exList" class="exceptions"></div>
-          <div id="exErr" class="err"></div>
-        </div>
-      `;
+        `;
+      }
 
-      // slot minutes
-      q("#slotMinutes").value = String(availability.slotMinutes || 30);
+      const rightCol = q("#rightCol");
+      if (rightCol) {
+        rightCol.innerHTML = `
+          <div class="card-title">
+            <h2>Исключения по датам</h2>
+            <span class="help">Переопределите рабочие интервалы для конкретного дня (праздники, выходные, сверхурочная работа)</span>
+          </div>
+          <div class="form">
+            <div class="row">
+              <div style="flex:1">
+                <label for="exDate">Дата</label>
+                <input id="exDate" type="date" class="input"/>
+              </div>
+              <div class="ex-ctrls">
+                <button class="btn-secondary" id="exAdd">Добавить интервал</button>
+                <button class="btn-danger" id="exClear">Сделать выходным</button>
+                <button class="btn-secondary" id="exCopyFromDOW">Скопировать из недели</button>
+                <button class="btn-secondary" id="exRemove">Удалить исключение</button>
+              </div>
+            </div>
+            <div id="exList" class="exceptions"></div>
+            <div id="exErr" class="err"></div>
+          </div>
+        `;
+      }
 
-      // неделя
+      const slotSelect = q("#slotMinutes");
+      if (slotSelect) slotSelect.value = String(availability.slotMinutes || 30);
+
       drawWeek();
 
-      // исключения
-      const todayStr = new Date().toISOString().slice(0,10);
-      q("#exDate").value = todayStr;
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const exDate = q("#exDate");
+      if (exDate) exDate.value = todayStr;
       drawExceptionEditor();
 
-      // events
-      q("#saveSchedule").onclick = saveSchedule;
-      q("#slotMinutes").onchange = ()=> availability.slotMinutes = Number(q("#slotMinutes").value||30);
-      q("#exDate").onchange = drawExceptionEditor;
-      q("#exAdd").onclick = ()=> exAddRange();
-      q("#exClear").onclick = ()=> exMakeDayOff();
-      q("#exCopyFromDOW").onclick = ()=> exCopyFromDow();
-      q("#exRemove").onclick = ()=> exRemoveDay();
-    }
-
-    function normalizeAvailability(){
-      availability = availability || {};
-      if(!Number.isFinite(availability.slotMinutes)) availability.slotMinutes = 30;
-      if(!availability.weekTemplate) availability.weekTemplate = {};
-      for(const d of [0,1,2,3,4,5,6]){
-        if(!Array.isArray(availability.weekTemplate[d])) availability.weekTemplate[d] = [];
+      const saveBtn = q("#saveSchedule");
+      if (saveBtn) saveBtn.onclick = saveSchedule;
+      
+      const slotMinutesSelect = q("#slotMinutes");
+      if (slotMinutesSelect) {
+        slotMinutesSelect.onchange = () => {
+          availability.slotMinutes = Number(slotMinutesSelect.value || 30);
+        };
       }
-      if(!availability.exceptions) availability.exceptions = {};
+      
+      const exDateInput = q("#exDate");
+      if (exDateInput) exDateInput.onchange = drawExceptionEditor;
+      
+      const exAddBtn = q("#exAdd");
+      if (exAddBtn) exAddBtn.onclick = () => exAddRange();
+      
+      const exClearBtn = q("#exClear");
+      if (exClearBtn) exClearBtn.onclick = () => exMakeDayOff();
+      
+      const exCopyBtn = q("#exCopyFromDOW");
+      if (exCopyBtn) exCopyBtn.onclick = () => exCopyFromDow();
+      
+      const exRemoveBtn = q("#exRemove");
+      if (exRemoveBtn) exRemoveBtn.onclick = () => exRemoveDay();
     }
 
-    // ——— WEEK EDITOR ———
-    function drawWeek(){
+    function normalizeAvailability() {
+      availability = availability || {};
+      if (!Number.isFinite(availability.slotMinutes)) availability.slotMinutes = 30;
+      if (!availability.weekTemplate) availability.weekTemplate = {};
+      for (const d of [0, 1, 2, 3, 4, 5, 6]) {
+        if (!Array.isArray(availability.weekTemplate[d])) availability.weekTemplate[d] = [];
+      }
+      if (!availability.exceptions) availability.exceptions = {};
+    }
+
+    function drawWeek() {
       const box = q("#weekBox");
+      if (!box) return;
+      
       weekErrors = {};
-      box.innerHTML = DOW.map(({i,t})=>{
-          const arr = availability.weekTemplate[i] || [];
-          const isOn = arr.length>0;
-          return `
-              <div class="day-row" data-d="${i}">
-                  <div class="day-head">
-                      <span class="day-title">${t}</span>
-                      <label class="day-toggle">
-                          <input type="checkbox" class="day-on" ${isOn?'checked':''}/>
-                          <span>${isOn?'Рабочий день':'Выходной'}</span>
-                      </label>
-                  </div>
-                  <div class="intervals">
-                      ${arr.map(([from,to],idx)=> intRowHTML(from,to, idx)).join('')}
-                  </div>
-                  <div class="int-add">
-                      <button class="btn-secondary add-int">Добавить интервал</button>
-                      <span class="err" data-err></span>
-                  </div>
-              </div>
-          `;
+      box.innerHTML = DOW.map(({ i, t }) => {
+        const arr = availability.weekTemplate[i] || [];
+        const isOn = arr.length > 0;
+        return `
+          <div class="day-row" data-d="${i}">
+            <div class="day-head">
+              <span class="day-title">${escapeHtml(t)}</span>
+              <label class="day-toggle">
+                <input type="checkbox" class="day-on" ${isOn ? 'checked' : ''}/>
+                <span>${isOn ? 'Рабочий день' : 'Выходной'}</span>
+              </label>
+            </div>
+            <div class="intervals">
+              ${arr.map(([from, to], idx) => intRowHTML(from, to, idx)).join('')}
+            </div>
+            <div class="int-add">
+              <button class="btn-secondary add-int">Добавить интервал</button>
+              <span class="err" data-err></span>
+            </div>
+          </div>
+        `;
       }).join('');
 
-      // bind events
-      qa(".day-row").forEach(row=>{
+      qa(".day-row").forEach(row => {
         const d = Number(row.dataset.d);
 
-        // toggle
-        row.querySelector(".day-on").onchange = (e)=>{
-          if(e.target.checked){
-            if(availability.weekTemplate[d].length===0){
-              availability.weekTemplate[d] = [["09:00","18:00"]];
+        const dayOn = row.querySelector(".day-on");
+        if (dayOn) {
+          dayOn.onchange = (e) => {
+            if (e.target.checked) {
+              if (availability.weekTemplate[d].length === 0) {
+                availability.weekTemplate[d] = [["09:00", "18:00"]];
+              }
+            } else {
+              availability.weekTemplate[d] = [];
             }
-          }else{
-            availability.weekTemplate[d] = [];
-          }
-          drawWeek();
-        };
+            drawWeek();
+          };
+        }
 
-        // add interval
-        row.querySelector(".add-int").onclick = ()=>{
-          availability.weekTemplate[d].push(["09:00","18:00"]);
-          drawWeek();
-        };
+        const addInt = row.querySelector(".add-int");
+        if (addInt) {
+          addInt.onclick = () => {
+            availability.weekTemplate[d].push(["09:00", "18:00"]);
+            drawWeek();
+          };
+        }
 
-        // existing intervals
-        row.querySelectorAll(".int-row").forEach(intEl=>{
+        row.querySelectorAll(".int-row").forEach(intEl => {
           const idx = Number(intEl.dataset.idx);
           const fromEl = intEl.querySelector('input[data-k="from"]');
-          const toEl   = intEl.querySelector('input[data-k="to"]');
+          const toEl = intEl.querySelector('input[data-k="to"]');
           const delBtn = intEl.querySelector('.btn-danger');
 
-          fromEl.onchange = ()=>{ availability.weekTemplate[d][idx][0] = fromEl.value; validateDay(d); };
-          toEl.onchange   = ()=>{ availability.weekTemplate[d][idx][1] = toEl.value; validateDay(d); };
-          delBtn.onclick  = ()=>{ availability.weekTemplate[d].splice(idx,1); drawWeek(); };
+          if (fromEl) {
+            fromEl.onchange = () => {
+              availability.weekTemplate[d][idx][0] = fromEl.value;
+              validateDay(d);
+            };
+          }
+          if (toEl) {
+            toEl.onchange = () => {
+              availability.weekTemplate[d][idx][1] = toEl.value;
+              validateDay(d);
+            };
+          }
+          if (delBtn) {
+            delBtn.onclick = () => {
+              availability.weekTemplate[d].splice(idx, 1);
+              drawWeek();
+            };
+          }
         });
 
         validateDay(d);
       });
     }
 
-    function intRowHTML(from="09:00", to="18:00", idx=0){
-    return `
+    function intRowHTML(from = "09:00", to = "18:00", idx = 0) {
+      return `
         <div class="int-row" data-idx="${idx}">
-            <input type="time" step="300" value="${from}" class="input" style="width:100px" data-k="from"/>
-            <span>—</span>
-            <input type="time" step="300" value="${to}" class="input" style="width:100px" data-k="to"/>
-            <button class="btn-danger" style="padding:6px 10px;" title="Удалить">×</button>
+          <input type="time" step="300" value="${from}" class="input" style="width:100px" data-k="from"/>
+          <span>—</span>
+          <input type="time" step="300" value="${to}" class="input" style="width:100px" data-k="to"/>
+          <button class="btn-danger" style="padding:6px 10px;" title="Удалить">×</button>
         </div>
-    `;
-}
+      `;
+    }
 
-    function validateDay(d){
-      const arr = [...(availability.weekTemplate[d]||[])];
+    function validateDay(d) {
+      const arr = [...(availability.weekTemplate[d] || [])];
       const errEl = q(`.day-row[data-d="${d}"] [data-err]`);
-      errEl.textContent = "";
-      if(arr.length===0){ delete weekErrors[d]; return true; }
-      // нормализуем: сортировка и проверка на пересечения
+      if (errEl) errEl.textContent = "";
+      if (arr.length === 0) {
+        delete weekErrors[d];
+        return true;
+      }
+      
       const toMin = s => {
-        const [h,m] = (s||"").split(':').map(Number);
-        return (h*60 + (m||0));
+        const [h, m] = (s || "").split(':').map(Number);
+        return (h * 60 + (m || 0));
       };
-      const lines = arr.map(([f,t])=>({f:toMin(f),t:toMin(t), s:[f,t]}))
-                       .filter(x=> Number.isFinite(x.f) && Number.isFinite(x.t) && x.f < x.t)
-                       .sort((a,b)=> a.f-b.f);
-      // проверка на перехлёсты
-      for(let i=1;i<lines.length;i++){
-        if(lines[i].f < lines[i-1].t){
-          errEl.textContent = "Интервалы пересекаются или заданы некорректно.";
+      
+      const lines = arr.map(([f, t]) => ({ f: toMin(f), t: toMin(t), s: [f, t] }))
+        .filter(x => Number.isFinite(x.f) && Number.isFinite(x.t) && x.f < x.t)
+        .sort((a, b) => a.f - b.f);
+      
+      for (let i = 1; i < lines.length; i++) {
+        if (lines[i].f < lines[i - 1].t) {
+          if (errEl) errEl.textContent = "Интервалы пересекаются или заданы некорректно.";
           weekErrors[d] = true;
           return false;
         }
@@ -835,92 +1082,133 @@ async function showOrderDetails(id){
       return true;
     }
 
-    // ——— EXCEPTIONS EDITOR ———
-    function drawExceptionEditor(){
-      const date = q("#exDate").value;
+    function drawExceptionEditor() {
+      const dateInput = q("#exDate");
+      if (!dateInput) return;
+      
+      const date = dateInput.value;
       exErrors = {};
       const box = q("#exList");
-      const list = (availability.exceptions[date]||[]);
-      if(list.length===0){
+      if (!box) return;
+      
+      const list = (availability.exceptions[date] || []);
+      if (list.length === 0) {
         box.innerHTML = `
           <div class="ex-row">
             <div class="hint">На эту дату исключений нет. Будет применено недельное расписание.</div>
           </div>
         `;
-      }else{
+      } else {
         box.innerHTML = `
           <div class="ex-row">
             <div class="ex-head">
-              <strong>Интервалы на ${date}</strong>
+              <strong>Интервалы на ${escapeHtml(date)}</strong>
               <span class="hint">Эти интервалы полностью заменяют недельное расписание</span>
             </div>
             <div id="exIntervals"></div>
           </div>
         `;
         const wrap = q("#exIntervals");
-        wrap.innerHTML = list.map(([f,t],i)=> `
-          <div class="ex-int" data-idx="${i}">
-            <input type="time" step="300" value="${f}" class="input" data-k="from"/>
-            <span>—</span>
-            <input type="time" step="300" value="${t}" class="input" data-k="to"/>
-            <button class="btn-danger">×</button>
-          </div>
-        `).join('');
+        if (wrap) {
+          wrap.innerHTML = list.map(([f, t], i) => `
+            <div class="ex-int" data-idx="${i}">
+              <input type="time" step="300" value="${f}" class="input" data-k="from"/>
+              <span>—</span>
+              <input type="time" step="300" value="${t}" class="input" data-k="to"/>
+              <button class="btn-danger">×</button>
+            </div>
+          `).join('');
 
-        wrap.querySelectorAll(".ex-int").forEach(node=>{
-          const idx = Number(node.dataset.idx);
-          const f = node.querySelector('input[data-k="from"]');
-          const t = node.querySelector('input[data-k="to"]');
-          const del = node.querySelector('.btn-danger');
-          f.onchange = ()=>{ availability.exceptions[date][idx][0] = f.value; validateEx(date); };
-          t.onchange = ()=>{ availability.exceptions[date][idx][1] = t.value; validateEx(date); };
-          del.onclick  = ()=>{ availability.exceptions[date].splice(idx,1); if(availability.exceptions[date].length===0) delete availability.exceptions[date]; drawExceptionEditor(); };
-        });
+          wrap.querySelectorAll(".ex-int").forEach(node => {
+            const idx = Number(node.dataset.idx);
+            const fInput = node.querySelector('input[data-k="from"]');
+            const tInput = node.querySelector('input[data-k="to"]');
+            const delBtn = node.querySelector('.btn-danger');
+            
+            if (fInput) {
+              fInput.onchange = () => {
+                availability.exceptions[date][idx][0] = fInput.value;
+                validateEx(date);
+              };
+            }
+            if (tInput) {
+              tInput.onchange = () => {
+                availability.exceptions[date][idx][1] = tInput.value;
+                validateEx(date);
+              };
+            }
+            if (delBtn) {
+              delBtn.onclick = () => {
+                availability.exceptions[date].splice(idx, 1);
+                if (availability.exceptions[date].length === 0) delete availability.exceptions[date];
+                drawExceptionEditor();
+              };
+            }
+          });
 
-        validateEx(date);
+          validateEx(date);
+        }
       }
-      q("#exErr").textContent = "";
+      const errEl = q("#exErr");
+      if (errEl) errEl.textContent = "";
     }
 
-    function exAddRange(){
-      const date = q("#exDate").value;
-      availability.exceptions[date] ||= [];
-      availability.exceptions[date].push(["09:00","18:00"]);
+    function exAddRange() {
+      const dateInput = q("#exDate");
+      if (!dateInput) return;
+      const date = dateInput.value;
+      availability.exceptions[date] = availability.exceptions[date] || [];
+      availability.exceptions[date].push(["09:00", "18:00"]);
       drawExceptionEditor();
     }
-    function exMakeDayOff(){
-      const date = q("#exDate").value;
-      availability.exceptions[date] = []; // пустой массив = все слоты сняты (выходной)
+
+    function exMakeDayOff() {
+      const dateInput = q("#exDate");
+      if (!dateInput) return;
+      const date = dateInput.value;
+      availability.exceptions[date] = [];
       drawExceptionEditor();
     }
-    function exCopyFromDow(){
-      const date = q("#exDate").value;
-      const dow = new Date(date+"T00:00:00").getDay();
+
+    function exCopyFromDow() {
+      const dateInput = q("#exDate");
+      if (!dateInput) return;
+      const date = dateInput.value;
+      const dow = new Date(date + "T00:00:00").getDay();
       const src = availability.weekTemplate[dow] || [];
       availability.exceptions[date] = JSON.parse(JSON.stringify(src));
       drawExceptionEditor();
     }
-    function exRemoveDay(){
-      const date = q("#exDate").value;
+
+    function exRemoveDay() {
+      const dateInput = q("#exDate");
+      if (!dateInput) return;
+      const date = dateInput.value;
       delete availability.exceptions[date];
       drawExceptionEditor();
     }
 
-    function validateEx(date){
-      const arr = [...(availability.exceptions[date]||[])];
+    function validateEx(date) {
+      const arr = [...(availability.exceptions[date] || [])];
       const errEl = q("#exErr");
-      errEl.textContent = "";
-      if(arr.length===0){ delete exErrors[date]; return true; }
+      if (errEl) errEl.textContent = "";
+      if (arr.length === 0) {
+        delete exErrors[date];
+        return true;
+      }
+      
       const toMin = s => {
-        const [h,m] = (s||"").split(':').map(Number);
-        return (h*60 + (m||0));
+        const [h, m] = (s || "").split(':').map(Number);
+        return (h * 60 + (m || 0));
       };
-      const lines = arr.map(([f,t])=>({f:toMin(f),t:toMin(t)}))
-                       .filter(x=> Number.isFinite(x.f) && Number.isFinite(x.t) && x.f < x.t)
-                       .sort((a,b)=> a.f-b.f);
-      for(let i=1;i<lines.length;i++){
-        if(lines[i].f < lines[i-1].t){
-          errEl.textContent = "Интервалы пересекаются или заданы некорректно.";
+      
+      const lines = arr.map(([f, t]) => ({ f: toMin(f), t: toMin(t) }))
+        .filter(x => Number.isFinite(x.f) && Number.isFinite(x.t) && x.f < x.t)
+        .sort((a, b) => a.f - b.f);
+      
+      for (let i = 1; i < lines.length; i++) {
+        if (lines[i].f < lines[i - 1].t) {
+          if (errEl) errEl.textContent = "Интервалы пересекаются или заданы некорректно.";
           exErrors[date] = true;
           return false;
         }
@@ -929,37 +1217,40 @@ async function showOrderDetails(id){
       return true;
     }
 
-    async function saveSchedule(){
-      // валидация: нет ошибок и хотя бы один рабочий день или исключение
-      const weekHasAny = Object.values(availability.weekTemplate||{}).some(a=> (a||[]).length>0);
-      const exHas = Object.keys(availability.exceptions||{}).length>0;
-      const hasWeekErr = Object.keys(weekErrors).length>0;
-      const hasExErr = Object.keys(exErrors).length>0;
+    async function saveSchedule() {
+      const weekHasAny = Object.values(availability.weekTemplate || {}).some(a => (a || []).length > 0);
+      const exHas = Object.keys(availability.exceptions || {}).length > 0;
+      const hasWeekErr = Object.keys(weekErrors).length > 0;
+      const hasExErr = Object.keys(exErrors).length > 0;
 
       const msg = q("#saveMsg");
-      msg.className = ""; msg.textContent = "";
+      if (msg) {
+        msg.className = "";
+        msg.textContent = "";
 
-      if(hasWeekErr || hasExErr){
-        msg.className = "warn";
-        msg.textContent = "Исправьте ошибки интервалов.";
-        return;
-      }
-      if(!weekHasAny && !exHas){
-        msg.className = "warn";
-        msg.textContent = "Нет рабочих интервалов — клиенты не смогут записаться.";
-        // всё равно позволим сохранить «полный выходной», если это осознанно
-      }
+        if (hasWeekErr || hasExErr) {
+          msg.className = "warn";
+          msg.textContent = "Исправьте ошибки интервалов.";
+          return;
+        }
+        if (!weekHasAny && !exHas) {
+          msg.className = "warn";
+          msg.textContent = "Нет рабочих интервалов — клиенты не смогут записаться.";
+        }
 
-      try{
-        normalizeAvailability();
-        await API.availability.set(me.id, availability);
-        msg.className = "ok";
-        msg.textContent = "Сохранено ✅";
-        clearTimeout(saveMsgTimer);
-        saveMsgTimer = setTimeout(()=> { msg.textContent = ""; }, 2500);
-      }catch(e){
-        msg.className = "warn";
-        msg.textContent = "Не удалось сохранить расписание.";
+        try {
+          normalizeAvailability();
+          await API.availability.set(me.id, availability);
+          msg.className = "ok";
+          msg.textContent = "Сохранено ✅";
+          clearTimeout(saveMsgTimer);
+          saveMsgTimer = setTimeout(() => {
+            if (msg) msg.textContent = "";
+          }, 2500);
+        } catch (e) {
+          msg.className = "warn";
+          msg.textContent = "Не удалось сохранить расписание.";
+        }
       }
     }
   </script>

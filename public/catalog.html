@@ -100,21 +100,23 @@
 
   <script src="/app.js"></script>
   <script>
-    const q = (s)=>document.querySelector(s), qa=(s)=>document.querySelectorAll(s);
-    let me=null, categories=[], services=[];
-    let filter = { query:'', catId:'ALL', min:null, max:null, sort:'relevance' };
+    const q = (s) => document.querySelector(s);
+    const qa = (s) => document.querySelectorAll(s);
+    let me = null, categories = [], services = [];
+    let filter = { query: '', catId: 'ALL', min: null, max: null, sort: 'relevance' };
     let page = 1, pageSize = 12;
 
     document.addEventListener('DOMContentLoaded', init);
 
-    async function orderFlow(serviceId){
-            const me = await API.getMe().catch(()=>null);
-            if(!me){ location.href = "/login.html?mode=login"; return; }
-            if(me.role!=='client'){ alert("Для оформления заявки войдите как клиент."); return; }
-            location.href = `/service.html?id=${serviceId}`;
-        } 
-    async function init(){
-      try{ me = await API.getMe(); }catch{}
+    async function orderFlow(serviceId) {
+      const me = await API.getMe().catch(() => null);
+      if (!me) { location.href = "/login.html?mode=login"; return; }
+      if (me.role !== 'client') { alert("Для оформления заявки войдите как клиент."); return; }
+      location.href = `/service.html?id=${serviceId}`;
+    }
+
+    async function init() {
+      try { me = await API.getMe(); } catch {}
       await Promise.all([loadCats(), loadServices()]);
       renderMiniKPI();
       hydrateFromURL();
@@ -123,219 +125,341 @@
       applyFiltersAndDraw();
     }
 
-    async function loadCats(){ categories = await API.categories.list(); }
-    async function loadServices(){ services = await API.services.list(); }
+    async function loadCats() { categories = await API.categories.list(); }
+    async function loadServices() { services = await API.services.list(); }
 
-    function renderMiniKPI(){
-      q('#miniKPI').innerHTML =
-        `<div class="stat-card"><div class="stat-number">${services.length}</div><div class="stat-label">Всего услуг</div></div>`;
+    function renderMiniKPI() {
+      const miniKPIDiv = q('#miniKPI');
+      if (miniKPIDiv) {
+        miniKPIDiv.innerHTML = `<div class="stat-card"><div class="stat-number">${services.length}</div><div class="stat-label">Всего услуг</div></div>`;
+      }
     }
 
-    function hydrateFromURL(){
+    function hydrateFromURL() {
       const u = new URL(location.href);
-      filter.query = (u.searchParams.get('q')||'').trim().toLowerCase();
+      filter.query = (u.searchParams.get('q') || '').trim().toLowerCase();
       filter.catId = u.searchParams.get('cat') || 'ALL';
-      filter.min   = u.searchParams.get('min'); filter.min = filter.min==null||filter.min===''?null:Number(filter.min);
-      filter.max   = u.searchParams.get('max'); filter.max = filter.max==null||filter.max===''?null:Number(filter.max);
-      filter.sort  = u.searchParams.get('sort') || 'relevance';
-      page         = Math.max(1, Number(u.searchParams.get('page') || 1));
+      filter.min = u.searchParams.get('min');
+      filter.min = filter.min == null || filter.min === '' ? null : Number(filter.min);
+      filter.max = u.searchParams.get('max');
+      filter.max = filter.max == null || filter.max === '' ? null : Number(filter.max);
+      filter.sort = u.searchParams.get('sort') || 'relevance';
+      page = Math.max(1, Number(u.searchParams.get('page') || 1));
     }
-    function pushURL(){
+
+    function pushURL() {
       const u = new URL(location.href);
       u.searchParams.set('q', filter.query);
       u.searchParams.set('cat', filter.catId);
       u.searchParams.set('sort', filter.sort);
-      if(filter.min!=null) u.searchParams.set('min', filter.min); else u.searchParams.delete('min');
-      if(filter.max!=null) u.searchParams.set('max', filter.max); else u.searchParams.delete('max');
+      if (filter.min != null) u.searchParams.set('min', filter.min);
+      else u.searchParams.delete('min');
+      if (filter.max != null) u.searchParams.set('max', filter.max);
+      else u.searchParams.delete('max');
       u.searchParams.set('page', page);
       history.replaceState(null, '', u);
     }
 
-    function buildTree(){
+    function buildTree() {
       const byParent = {};
-      categories.forEach(c=>{
+      categories.forEach(c => {
         const p = c.parentId ?? 0;
-        (byParent[p] ||= []).push(c);
+        if (!byParent[p]) byParent[p] = [];
+        byParent[p].push(c);
       });
-      Object.values(byParent).forEach(arr => arr.sort((a,b)=> a.name.localeCompare(b.name)));
+      Object.values(byParent).forEach(arr => arr.sort((a, b) => a.name.localeCompare(b.name)));
 
-      const treeEl = q('#categoryTree'); treeEl.innerHTML = "";
+      const treeEl = q('#categoryTree');
+      if (!treeEl) return;
+      
+      treeEl.innerHTML = "";
       const rootWrap = document.createElement('div');
-      rootWrap.innerHTML = renderNodeList(byParent[0]||[], 0);
+      rootWrap.innerHTML = renderNodeList(byParent[0] || [], 0);
       treeEl.append(rootWrap);
 
-      treeEl.addEventListener('click', (e)=>{
-        const node = e.target.closest('.node'); if(!node) return;
+      treeEl.addEventListener('click', (e) => {
+        const node = e.target.closest('.node');
+        if (!node) return;
         const id = node.dataset.id;
-        qa('#categoryTree .node').forEach(n=> n.classList.remove('active'));
+        qa('#categoryTree .node').forEach(n => n.classList.remove('active'));
         node.classList.add('active');
         filter.catId = id;
-        page = 1; pushURL(); applyFiltersAndDraw();
+        page = 1;
+        pushURL();
+        applyFiltersAndDraw();
       });
 
-      treeEl.addEventListener('click', (e)=>{
-        const t = e.target.closest('.toggle'); if(!t) return;
+      treeEl.addEventListener('click', (e) => {
+        const t = e.target.closest('.toggle');
+        if (!t) return;
         e.stopPropagation();
-        if(t.classList.contains('disabled')) return;
+        if (t.classList.contains('disabled')) return;
         const li = t.closest('li');
         li.classList.toggle('collapsed');
         t.textContent = li.classList.contains('collapsed') ? '+' : '–';
         const ul = li.querySelector(':scope > ul');
-        if(ul) ul.style.display = li.classList.contains('collapsed') ? 'none' : '';
+        if (ul) ul.style.display = li.classList.contains('collapsed') ? 'none' : '';
       });
 
       const all = document.createElement('div');
-      all.className = "node " + (filter.catId==='ALL' ? "active": "");
+      all.className = "node " + (filter.catId === 'ALL' ? "active" : "");
       all.dataset.id = "ALL";
       all.innerHTML = `<span class="toggle disabled">•</span><span>Все категории</span>`;
       treeEl.prepend(all);
 
-      if(filter.catId!=='ALL'){
+      if (filter.catId !== 'ALL') {
         const pathIds = [];
-        let cur = categories.find(c=> String(c.id)===String(filter.catId));
-        while(cur){ pathIds.push(cur.id); cur = categories.find(c=> c.id === cur.parentId); }
-        pathIds.forEach(id=>{
+        let cur = categories.find(c => String(c.id) === String(filter.catId));
+        while (cur) {
+          pathIds.push(cur.id);
+          cur = categories.find(c => c.id === cur.parentId);
+        }
+        pathIds.forEach(id => {
           const li = treeEl.querySelector(`li[data-id="${id}"]`);
-          if(li){
+          if (li) {
             li.classList.remove('collapsed');
             const tgl = li.querySelector(':scope > .node .toggle');
-            if(tgl) tgl.textContent = '–';
-            const ul = li.querySelector(':scope > ul'); if(ul) ul.style.display = '';
+            if (tgl) tgl.textContent = '–';
+            const ul = li.querySelector(':scope > ul');
+            if (ul) ul.style.display = '';
           }
         });
       }
     }
 
-    function renderNodeList(items, level){
-      return `<ul>${items.map(c=>{
-        const children = categories.filter(x=> x.parentId === c.id);
-        const hasChildren = children.length>0;
-        const collapsed = (level>0);
+    function renderNodeList(items, level) {
+      return `<ul>${items.map(c => {
+        const children = categories.filter(x => x.parentId === c.id);
+        const hasChildren = children.length > 0;
+        const collapsed = (level > 0);
         const isActive = String(filter.catId) === String(c.id);
         return `
-          <li data-id="${c.id}" class="${collapsed ? 'collapsed':''}">
-            <div class="node ${isActive?'active':''}" data-id="${c.id}">
-              <span class="toggle ${hasChildren?'':'disabled'}">${hasChildren ? (collapsed?'+':'–') : '•'}</span>
-              <span>${c.name}</span>
+          <li data-id="${c.id}" class="${collapsed ? 'collapsed' : ''}">
+            <div class="node ${isActive ? 'active' : ''}" data-id="${c.id}">
+              <span class="toggle ${hasChildren ? '' : 'disabled'}">${hasChildren ? (collapsed ? '+' : '–') : '•'}</span>
+              <span>${escapeHtml(c.name)}</span>
             </div>
-            ${hasChildren ? renderNodeList(children, level+1) : ''}
+            ${hasChildren ? renderNodeList(children, level + 1) : ''}
           </li>
         `;
       }).join('')}</ul>`;
     }
 
-    function bindFilterInputs(){
-      q('#q').value = filter.query;
-      q('#minPrice').value = filter.min==null ? '' : filter.min;
-      q('#maxPrice').value = filter.max==null ? '' : filter.max;
-      q('#sort').value = filter.sort;
+    function bindFilterInputs() {
+      const qInput = q('#q');
+      const minPriceInput = q('#minPrice');
+      const maxPriceInput = q('#maxPrice');
+      const sortSelect = q('#sort');
+      const resetBtn = q('#reset');
+      
+      if (qInput) qInput.value = filter.query;
+      if (minPriceInput) minPriceInput.value = filter.min == null ? '' : filter.min;
+      if (maxPriceInput) maxPriceInput.value = filter.max == null ? '' : filter.max;
+      if (sortSelect) sortSelect.value = filter.sort;
 
-      q('#q').oninput       = e=> { filter.query = e.target.value.trim().toLowerCase(); page=1; pushURL(); applyFiltersAndDraw(); };
-      q('#minPrice').oninput= e=> { const v=e.target.value; filter.min = v===''?null:Number(v); page=1; pushURL(); applyFiltersAndDraw(); };
-      q('#maxPrice').oninput= e=> { const v=e.target.value; filter.max = v===''?null:Number(v); page=1; pushURL(); applyFiltersAndDraw(); };
-      q('#sort').onchange   = e=> { filter.sort = e.target.value; pushURL(); applyFiltersAndDraw(); };
-      q('#reset').onclick   = ()=>{
-        filter = { query:'', catId:'ALL', min:null, max:null, sort:'relevance' };
-        page = 1; pushURL(); buildTree(); bindFilterInputs(); applyFiltersAndDraw();
-      };
+      if (qInput) {
+        qInput.oninput = (e) => {
+          filter.query = e.target.value.trim().toLowerCase();
+          page = 1;
+          pushURL();
+          applyFiltersAndDraw();
+        };
+      }
+      
+      if (minPriceInput) {
+        minPriceInput.oninput = (e) => {
+          const v = e.target.value;
+          filter.min = v === '' ? null : Number(v);
+          page = 1;
+          pushURL();
+          applyFiltersAndDraw();
+        };
+      }
+      
+      if (maxPriceInput) {
+        maxPriceInput.oninput = (e) => {
+          const v = e.target.value;
+          filter.max = v === '' ? null : Number(v);
+          page = 1;
+          pushURL();
+          applyFiltersAndDraw();
+        };
+      }
+      
+      if (sortSelect) {
+        sortSelect.onchange = (e) => {
+          filter.sort = e.target.value;
+          pushURL();
+          applyFiltersAndDraw();
+        };
+      }
+      
+      if (resetBtn) {
+        resetBtn.onclick = () => {
+          filter = { query: '', catId: 'ALL', min: null, max: null, sort: 'relevance' };
+          page = 1;
+          pushURL();
+          buildTree();
+          bindFilterInputs();
+          applyFiltersAndDraw();
+        };
+      }
     }
 
-    function applyFiltersAndDraw(){
+    function applyFiltersAndDraw() {
       let list = [...services];
 
-      if(filter.catId!=='ALL'){
+      if (filter.catId !== 'ALL') {
         const ids = new Set([Number(filter.catId)]);
         const queue = [Number(filter.catId)];
-        while(queue.length){
+        while (queue.length) {
           const pid = queue.shift();
-          const kids = categories.filter(c=> c.parentId === pid);
-          for(const k of kids){ if(!ids.has(k.id)){ ids.add(k.id); queue.push(k.id); } }
+          const kids = categories.filter(c => c.parentId === pid);
+          for (const k of kids) {
+            if (!ids.has(k.id)) {
+              ids.add(k.id);
+              queue.push(k.id);
+            }
+          }
         }
-        list = list.filter(s=> ids.has(Number(s.categoryId)));
+        list = list.filter(s => ids.has(Number(s.categoryId)));
       }
 
-      if(filter.query){
+      if (filter.query) {
         const ql = filter.query;
-        list = list.filter(s=>
-          (s.title||'').toLowerCase().includes(ql) ||
-          (s.description||'').toLowerCase().includes(ql)
+        list = list.filter(s =>
+          (s.title || '').toLowerCase().includes(ql) ||
+          (s.description || '').toLowerCase().includes(ql)
         );
       }
-      if(filter.min!=null) list = list.filter(s=> Number(s.price||0) >= filter.min);
-      if(filter.max!=null) list = list.filter(s=> Number(s.price||0) <= filter.max);
+      if (filter.min != null) list = list.filter(s => Number(s.price || 0) >= filter.min);
+      if (filter.max != null) list = list.filter(s => Number(s.price || 0) <= filter.max);
 
-      if(filter.sort==='price_asc') list.sort((a,b)=> (a.price||0)-(b.price||0));
-      else if(filter.sort==='price_desc') list.sort((a,b)=> (b.price||0)-(a.price||0));
-      else if(filter.sort==='title') list.sort((a,b)=> (a.title||'').localeCompare(b.title||''));
+      if (filter.sort === 'price_asc') list.sort((a, b) => (a.price || 0) - (b.price || 0));
+      else if (filter.sort === 'price_desc') list.sort((a, b) => (b.price || 0) - (a.price || 0));
+      else if (filter.sort === 'title') list.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
 
-      q('#countInfo').textContent   = `${list.length} позиций`;
-      q('#resultInfo').textContent  = (()=>{
-        if(filter.catId==='ALL') return 'Все категории';
-        const current = categories.find(c=> String(c.id)===String(filter.catId));
-        if(!current) return 'Категория';
-        const path = [current.name];
-        let p = categories.find(c=> c.id === current.parentId);
-        while(p){ path.push(p.name); p = categories.find(c=> c.id === p.parentId); }
-        return path.reverse().join(' / ');
-      })();
+      const countInfo = q('#countInfo');
+      if (countInfo) countInfo.textContent = `${list.length} позиций`;
+      
+      const resultInfo = q('#resultInfo');
+      if (resultInfo) {
+        resultInfo.textContent = (() => {
+          if (filter.catId === 'ALL') return 'Все категории';
+          const current = categories.find(c => String(c.id) === String(filter.catId));
+          if (!current) return 'Категория';
+          const path = [current.name];
+          let p = categories.find(c => c.id === current.parentId);
+          while (p) {
+            path.push(p.name);
+            p = categories.find(c => c.id === p.parentId);
+          }
+          return path.reverse().join(' / ');
+        })();
+      }
 
       const pages = Math.max(1, Math.ceil(list.length / pageSize));
-      if(page > pages) page = pages;
-      const start = (page-1)*pageSize, end = start + pageSize;
+      if (page > pages) page = pages;
+      const start = (page - 1) * pageSize, end = start + pageSize;
       const pageItems = list.slice(start, end);
-      q('#pageSizeInfo').textContent = pageSize;
+      
+      const pageSizeInfo = q('#pageSizeInfo');
+      if (pageSizeInfo) pageSizeInfo.textContent = pageSize;
 
       drawGrid(pageItems);
       drawPager(page, pages);
     }
 
-    function drawGrid(items){
+    function drawGrid(items) {
       const grid = q('#svcGrid');
-      if(!items.length){
+      if (!grid) return;
+      
+      if (!items.length) {
         grid.innerHTML = `<div class="empty">По вашему запросу ничего не найдено.</div>`;
         return;
       }
+      
       grid.innerHTML = "";
-      items.forEach(s=>{
-        const cat = categories.find(c=>c.id===s.categoryId);
-        const el = document.createElement('div');
-        el.className='service-card';
-        el.innerHTML = `
-          <h3>${s.title}</h3>
-          <p class="clamp">${s.description||''}</p>
-          <p class="price"><strong>${(s.price||0).toFixed(2)} ₽</strong></p>
-          <p class="help">${cat?cat.name:'Без категории'} • Мастер #${s.masterId}</p>
-          <div class="row">
-            <a class="btn" href="/service.html?id=${s.id}">Подробнее</a>
-          </div>
-          <span class="note">Перейдите в «Подробнее», чтобы выбрать удобный день и время</span>
-        `;
-        grid.append(el);
+      items.forEach(s => {
+        const cat = categories.find(c => c.id === s.categoryId);
+        const card = document.createElement('div');
+        card.className = 'service-card';
+        
+        const title = document.createElement('h3');
+        title.textContent = escapeHtml(s.title);
+        
+        const desc = document.createElement('p');
+        desc.className = 'clamp';
+        desc.textContent = escapeHtml(s.description || '');
+        
+        const priceP = document.createElement('p');
+        priceP.className = 'price';
+        const strong = document.createElement('strong');
+        strong.textContent = `${(s.price || 0).toFixed(2)} ₽`;
+        priceP.appendChild(strong);
+        
+        const helpP = document.createElement('p');
+        helpP.className = 'help';
+        helpP.textContent = `${cat ? escapeHtml(cat.name) : 'Без категории'} • Мастер #${s.masterId}`;
+        
+        const rowDiv = document.createElement('div');
+        rowDiv.className = 'row';
+        
+        const detailsLink = document.createElement('a');
+        detailsLink.className = 'btn';
+        detailsLink.href = `/service.html?id=${s.id}`;
+        detailsLink.textContent = 'Подробнее';
+        rowDiv.appendChild(detailsLink);
+        
+        const noteSpan = document.createElement('span');
+        noteSpan.className = 'note';
+        noteSpan.textContent = 'Перейдите в «Подробнее», чтобы выбрать удобный день и время';
+        
+        card.appendChild(title);
+        card.appendChild(desc);
+        card.appendChild(priceP);
+        card.appendChild(helpP);
+        card.appendChild(rowDiv);
+        card.appendChild(noteSpan);
+        
+        grid.appendChild(card);
       });
     }
 
-    function drawPager(cur, total){
+    function drawPager(cur, total) {
       const pager = q('#pager');
-      if(total<=1){ pager.innerHTML=''; return; }
-      const makeBtn = (n,label=n)=> `<button class="page ${n===cur?'active':''}" data-p="${n}">${label}</button>`;
+      if (!pager) return;
+      
+      if (total <= 1) {
+        pager.innerHTML = '';
+        return;
+      }
+      
+      const makeBtn = (n, label = n) => `<button class="page ${n === cur ? 'active' : ''}" data-p="${n}">${escapeHtml(String(label))}</button>`;
       let html = '';
-      if(cur>1) html += makeBtn(cur-1,'‹');
-      const range = [...Array(total)].map((_,i)=>i+1).filter(n=>{
-        if(total<=7) return true;
-        if(n<=2 || n>total-2 || Math.abs(n-cur)<=1) return true;
+      if (cur > 1) html += makeBtn(cur - 1, '‹');
+      
+      const range = [...Array(total)].map((_, i) => i + 1).filter(n => {
+        if (total <= 7) return true;
+        if (n <= 2 || n > total - 2 || Math.abs(n - cur) <= 1) return true;
         return false;
       });
-      let last=0;
-      for(const n of range){
-        if(n-last>1) html += `<span class="help">…</span>`;
+      
+      let last = 0;
+      for (const n of range) {
+        if (n - last > 1) html += `<span class="help">…</span>`;
         html += makeBtn(n);
-        last=n;
+        last = n;
       }
-      if(cur<total) html += makeBtn(cur+1,'›');
+      if (cur < total) html += makeBtn(cur + 1, '›');
+      
       pager.innerHTML = html;
-      pager.onclick = (e)=>{
-        const b = e.target.closest('.page'); if(!b) return;
-        page = Number(b.dataset.p) || 1; pushURL(); applyFiltersAndDraw();
+      pager.onclick = (e) => {
+        const b = e.target.closest('.page');
+        if (!b) return;
+        page = Number(b.dataset.p) || 1;
+        pushURL();
+        applyFiltersAndDraw();
       };
     }
   </script>

@@ -29,6 +29,7 @@
     .search-row .input{ flex:1 1 260px; }
     .toast { position:fixed; right:16px; bottom:16px; background:#fff; border:1px solid var(--border);
              padding:12px 14px; border-radius:10px; box-shadow: var(--shadow); display:none; }
+    .is-highlighted { background: #e0f2fe !important; border: 2px solid #0284c7 !important; transition: all 0.3s ease; }
   </style>
 </head>
 <body id="page-client">
@@ -58,22 +59,30 @@
 
   <script src="/app.js"></script>
   <script>
-    const q = (s)=>document.querySelector(s), qa=(s)=>document.querySelectorAll(s);
-    const statusName = { NEW:'Новый', ACCEPTED:'Принят', DONE:'Выполнен', REJECTED:'Отклонён', CANCELLED:'Отменён' };
+    const q = (s) => document.querySelector(s);
+    const qa = (s) => document.querySelectorAll(s);
+    const statusName = { NEW: 'Новый', ACCEPTED: 'Принят', DONE: 'Выполнен', REJECTED: 'Отклонён', CANCELLED: 'Отменён' };
 
-    let me=null, categories=[], services=[], orders=[];
-    let activeTab='overview';
-    let orderFilter='ALL', orderQuery='';
+    let me = null;
+    let categories = [];
+    let services = [];
+    let orders = [];
+    let activeTab = 'overview';
+    let orderFilter = 'ALL';
+    let orderQuery = '';
     let pendingFocusOrderId = null;
 
     document.addEventListener('DOMContentLoaded', init);
 
-    async function init(){
-      try{
+    async function init() {
+      try {
         me = await API.getMe();
-        if(me.role !== 'client') return location.href = '/';
-        q('#hello').textContent = `${me.name||'Клиент'} (${me.email})`;
-      }catch{ return location.href='/login.html?mode=login'; }
+        if (me.role !== 'client') return location.href = '/';
+        const helloSpan = q('#hello');
+        if (helloSpan) helloSpan.textContent = escapeHtml(`${me.name || 'Клиент'} (${me.email})`);
+      } catch {
+        return location.href = '/login.html?mode=login';
+      }
 
       readUrlState();
       bindTabs();
@@ -82,7 +91,7 @@
       render();
     }
 
-    function readUrlState(){
+    function readUrlState() {
       const url = new URL(location.href);
       const tab = url.searchParams.get('tab');
       activeTab = tab === 'orders' ? 'orders' : 'overview';
@@ -90,7 +99,7 @@
       pendingFocusOrderId = Number.isInteger(orderId) && orderId > 0 ? orderId : null;
     }
 
-    function syncUrl(){
+    function syncUrl() {
       const url = new URL(location.href);
       url.searchParams.set('tab', activeTab);
       if (pendingFocusOrderId) url.searchParams.set('orderId', String(pendingFocusOrderId));
@@ -98,58 +107,63 @@
       history.replaceState(null, '', url);
     }
 
-    function bindTabs(){
-      qa('.tab').forEach(b=> b.addEventListener('click', ()=> setTab(b.dataset.tab, { push:true })));
-      setTab(activeTab, { push:false });
+    function bindTabs() {
+      qa('.tab').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab, { push: true })));
+      setTab(activeTab, { push: false });
     }
 
-    function setTab(tab, { push = true } = {}){
+    function setTab(tab, { push = true } = {}) {
       activeTab = tab === 'orders' ? 'orders' : 'overview';
-      qa('.tab').forEach(x=> x.classList.toggle('active', x.dataset.tab === activeTab));
+      qa('.tab').forEach(x => x.classList.toggle('active', x.dataset.tab === activeTab));
       if (push) syncUrl();
       render();
     }
 
-    async function loadCats(){ categories = await API.categories.list(); }
-    async function loadServices(){ services = await API.services.list(); }
-    async function loadOrders(){ orders = await API.orders.list(); }
+    async function loadCats() { categories = await API.categories.list(); }
+    async function loadServices() { services = await API.services.list(); }
+    async function loadOrders() { orders = await API.orders.list(); }
 
-    function renderMiniKPI(){
+    function renderMiniKPI() {
       const k = {
         total: orders.length,
-        NEW: orders.filter(o=>o.status==='NEW').length,
-        ACCEPTED: orders.filter(o=>o.status==='ACCEPTED').length,
-        DONE: orders.filter(o=>o.status==='DONE').length
+        NEW: orders.filter(o => o.status === 'NEW').length,
+        ACCEPTED: orders.filter(o => o.status === 'ACCEPTED').length,
+        DONE: orders.filter(o => o.status === 'DONE').length
       };
-      q('#miniKPI').innerHTML = [
-        ['Заказы', k.total],
-        ['Новые', k.NEW],
-        ['Приняты', k.ACCEPTED],
-        ['Выполнены', k.DONE],
-      ].map(([l,v])=> `<div class="stat-card"><div class="stat-number">${v}</div><div class="stat-label">${l}</div></div>`).join('');
+      const miniKPIDiv = q('#miniKPI');
+      if (miniKPIDiv) {
+        miniKPIDiv.innerHTML = [
+          ['Заказы', k.total],
+          ['Новые', k.NEW],
+          ['Приняты', k.ACCEPTED],
+          ['Выполнены', k.DONE],
+        ].map(([l, v]) => `<div class="stat-card"><div class="stat-number">${v}</div><div class="stat-label">${escapeHtml(l)}</div></div>`).join('');
+      }
     }
 
-    function render(){
-      if(activeTab==='overview') return renderOverview();
-      if(activeTab==='orders') return renderOrdersTab();
+    function render() {
+      if (activeTab === 'overview') return renderOverview();
+      if (activeTab === 'orders') return renderOrdersTab();
     }
 
-    function renderOverview(){
+    function renderOverview() {
       const screen = q('#screen');
+      if (!screen) return;
+
       const upcoming = [...orders]
-        .filter(o=> o.desired_datetime && (o.status==='NEW' || o.status==='ACCEPTED'))
-        .sort((a,b)=> getPseudoUtcComparableTimestamp(a.desired_datetime)-getPseudoUtcComparableTimestamp(b.desired_datetime))[0] || null;
+        .filter(o => o.desired_datetime && (o.status === 'NEW' || o.status === 'ACCEPTED'))
+        .sort((a, b) => getPseudoUtcComparableTimestamp(a.desired_datetime) - getPseudoUtcComparableTimestamp(b.desired_datetime))[0] || null;
 
       const recent = [...orders]
-        .sort((a,b)=> getPseudoUtcComparableTimestamp(b.status_date||b.desired_datetime||0) - getPseudoUtcComparableTimestamp(a.status_date||a.desired_datetime||0))
-        .slice(0,5);
+        .sort((a, b) => getPseudoUtcComparableTimestamp(b.status_date || b.desired_datetime || 0) - getPseudoUtcComparableTimestamp(a.status_date || a.desired_datetime || 0))
+        .slice(0, 5);
 
       const freqMap = new Map();
-      orders.forEach(o=> freqMap.set(o.serviceId, (freqMap.get(o.serviceId)||0)+1));
-      const frequent = [...freqMap.entries()].sort((a,b)=> b[1]-a[1]).slice(0,6).map(([id,cnt])=>{
-        const s = services.find(x=>x.id===id) || {};
-        return { service:s, count:cnt };
-      }).filter(x=> x.service && x.service.id);
+      orders.forEach(o => freqMap.set(o.serviceId, (freqMap.get(o.serviceId) || 0) + 1));
+      const frequent = [...freqMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([id, cnt]) => {
+        const s = services.find(x => x.id === id) || {};
+        return { service: s, count: cnt };
+      }).filter(x => x.service && x.service.id);
 
       screen.innerHTML = `
         <section class="card">
@@ -160,7 +174,7 @@
               <button class="btn-secondary" id="qa-orders">Мои заказы</button>
             </div>
           </div>
-          ${ renderUpcoming(upcoming) }
+          ${renderUpcomingSafe(upcoming)}
         </section>
 
         <section class="card">
@@ -168,7 +182,7 @@
             <h2>Последние заявки</h2>
             <span class="subtle">5 последних</span>
           </div>
-          ${ recent.length ? `<div class="order-list" id="recentList"></div>` : `<div class="empty">Заявок пока нет. Нажмите «Создать заказ», чтобы выбрать услугу.</div>`}
+          ${recent.length ? `<div class="order-list" id="recentList"></div>` : `<div class="empty">Заявок пока нет. Нажмите «Создать заказ», чтобы выбрать услугу.</div>`}
         </section>
 
         <section class="card" style="grid-column: 1 / -1">
@@ -176,202 +190,323 @@
             <h2>Часто заказываемые</h2>
             <span class="subtle">Быстрый повтор из истории</span>
           </div>
-          ${ frequent.length ? `<div class="mini-grid" id="freqGrid"></div>` : `<div class="empty">Список пуст — оформите несколько заявок, и тут появятся быстрые действия.</div>`}
+          ${frequent.length ? `<div class="mini-grid" id="freqGrid"></div>` : `<div class="empty">Список пуст — оформите несколько заявок, и тут появятся быстрые действия.</div>`}
         </section>
       `;
 
-      q('#qa-new').onclick = ()=> location.href='/catalog.html';
-      q('#qa-orders').onclick = ()=> setTab('orders');
+      const newBtn = q('#qa-new');
+      if (newBtn) newBtn.onclick = () => location.href = '/catalog.html';
+      
+      const ordersBtn = q('#qa-orders');
+      if (ordersBtn) ordersBtn.onclick = () => setTab('orders');
 
-      if(recent.length){
+      if (recent.length) {
         const box = q('#recentList');
-        recent.forEach(o=>{
-          const s = services.find(x=>x.id===o.serviceId) || {};
-          const whenStr = o.desired_datetime ? formatPseudoUtcDateTime(o.desired_datetime) : '—';
-          const showWhen = whenStr !== '—';
-          const el = document.createElement('div');
-          el.className='card order-card';
-          el.innerHTML = `
-            <h3>${s.title || 'Услуга'}</h3>
-            <div class="order-meta">
-              <span class="status-badge">${statusName[o.status] || o.status}</span>
-              ${ showWhen ? ` • <span class="when">${whenStr}</span>` : '' }
-            </div>
-            <div class="ord-actions" style="margin-top:8px">
-              ${ (o.status==='NEW'||o.status==='ACCEPTED') ? `<button class="btn-secondary" data-cancel="${o.id}">Отменить</button>` : '' }
-              <button class="btn" data-reorder="${o.serviceId}">Повторить</button>
-              <a class="btn-secondary" href="/service.html?id=${o.serviceId}">Подробнее</a>
-            </div>
-          `;
-          const cbtn = el.querySelector('[data-cancel]');
-          if(cbtn) cbtn.onclick = ()=> cancelOrder(o.id, ()=> renderOverview());
-          el.querySelector('[data-reorder]').onclick = ()=> reorder(o.serviceId);
-          box.append(el);
-        });
+        if (box) {
+          recent.forEach(o => {
+            const s = services.find(x => x.id === o.serviceId) || {};
+            const whenStr = o.desired_datetime ? formatPseudoUtcDateTime(o.desired_datetime) : '—';
+            const showWhen = whenStr !== '—';
+            
+            const card = document.createElement('div');
+            card.className = 'card order-card';
+            
+            const title = document.createElement('h3');
+            title.textContent = escapeHtml(s.title || 'Услуга');
+            
+            const metaDiv = document.createElement('div');
+            metaDiv.className = 'order-meta';
+            
+            const badgeSpan = document.createElement('span');
+            badgeSpan.className = 'status-badge';
+            badgeSpan.textContent = statusName[o.status] || o.status;
+            metaDiv.appendChild(badgeSpan);
+            
+            if (showWhen) {
+              const whenSpan = document.createElement('span');
+              whenSpan.innerHTML = ` • <span class="when">${escapeHtml(whenStr)}</span>`;
+              metaDiv.appendChild(whenSpan);
+            }
+            
+            const actionsDiv = document.createElement('div');
+            actionsDiv.className = 'ord-actions';
+            actionsDiv.style.marginTop = '8px';
+            
+            if (o.status === 'NEW' || o.status === 'ACCEPTED') {
+              const cancelBtn = document.createElement('button');
+              cancelBtn.className = 'btn-secondary';
+              cancelBtn.textContent = 'Отменить';
+              cancelBtn.onclick = () => cancelOrder(o.id, () => renderOverview());
+              actionsDiv.appendChild(cancelBtn);
+            }
+            
+            const repeatBtn = document.createElement('button');
+            repeatBtn.className = 'btn';
+            repeatBtn.textContent = 'Повторить';
+            repeatBtn.onclick = () => reorder(o.serviceId);
+            actionsDiv.appendChild(repeatBtn);
+            
+            const detailsLink = document.createElement('a');
+            detailsLink.className = 'btn-secondary';
+            detailsLink.href = `/service.html?id=${o.serviceId}`;
+            detailsLink.textContent = 'Подробнее';
+            actionsDiv.appendChild(detailsLink);
+            
+            card.appendChild(title);
+            card.appendChild(metaDiv);
+            card.appendChild(actionsDiv);
+            box.appendChild(card);
+          });
+        }
       }
 
-      if(frequent.length){
+      if (frequent.length) {
         const grid = q('#freqGrid');
-        frequent.forEach(({service: s, count})=>{
-          const cat = categories.find(c=>c.id===s.categoryId);
-          const d = document.createElement('div');
-          d.className='svc-mini';
-          d.innerHTML = `
-            <h4>${s.title}</h4>
-            <div class="note">${cat?cat.name:'Без категории'} • ${(s.price||0).toFixed(2)} ₽</div>
-            <div class="row" style="margin-top:6px">
-              <span class="subtle">заказывали ${count}×</span>
-              <button class="btn" data-quick="${s.id}">Заказать</button>
-            </div>
-          `;
-          d.querySelector('[data-quick]').onclick = ()=> reorder(s.id);
-          grid.append(d);
-        });
+        if (grid) {
+          frequent.forEach(({ service: s, count }) => {
+            const cat = categories.find(c => c.id === s.categoryId);
+            const card = document.createElement('div');
+            card.className = 'svc-mini';
+            
+            const title = document.createElement('h4');
+            title.textContent = escapeHtml(s.title);
+            
+            const noteDiv = document.createElement('div');
+            noteDiv.className = 'note';
+            noteDiv.textContent = `${cat ? escapeHtml(cat.name) : 'Без категории'} • ${(s.price || 0).toFixed(2)} ₽`;
+            
+            const rowDiv = document.createElement('div');
+            rowDiv.className = 'row';
+            rowDiv.style.marginTop = '6px';
+            
+            const countSpan = document.createElement('span');
+            countSpan.className = 'subtle';
+            countSpan.textContent = `заказывали ${count}×`;
+            
+            const orderBtn = document.createElement('button');
+            orderBtn.className = 'btn';
+            orderBtn.textContent = 'Заказать';
+            orderBtn.onclick = () => reorder(s.id);
+            
+            rowDiv.appendChild(countSpan);
+            rowDiv.appendChild(orderBtn);
+            
+            card.appendChild(title);
+            card.appendChild(noteDiv);
+            card.appendChild(rowDiv);
+            grid.appendChild(card);
+          });
+        }
       }
 
       const upCancel = document.getElementById('upCancel');
-      if(upCancel && upcoming) upCancel.onclick = ()=> cancelOrder(upcoming.id, ()=> renderOverview());
+      if (upCancel && upcoming) upCancel.onclick = () => cancelOrder(upcoming.id, () => renderOverview());
     }
 
-    function renderUpcoming(upcoming){
-      if(!upcoming){
+    function renderUpcomingSafe(upcoming) {
+      if (!upcoming) {
         return `<div class="empty">Нет ближайших записей. Нажмите «Создать заказ», чтобы выбрать услугу и время.</div>`;
       }
-      const s = services.find(x=>x.id===upcoming.serviceId) || {};
+      const s = services.find(x => x.id === upcoming.serviceId) || {};
       const whenStr = upcoming.desired_datetime ? formatPseudoUtcDateTime(upcoming.desired_datetime) : '—';
       const showWhen = whenStr !== '—';
       return `
         <div class="card order-card" style="margin-top:6px">
-          <h3>${s.title || 'Услуга'}</h3>
+          <h3>${escapeHtml(s.title || 'Услуга')}</h3>
           <div class="order-meta">
-            <span class="status-badge">${statusName[upcoming.status] || upcoming.status}</span>
-            ${ showWhen ? ` • <span class="when">${whenStr}</span>` : '' }
+            <span class="status-badge">${escapeHtml(statusName[upcoming.status] || upcoming.status)}</span>
+            ${showWhen ? ` • <span class="when">${escapeHtml(whenStr)}</span>` : ''}
           </div>
-          <p class="subtle" style="margin:8px 0 0">Стоимость: <strong>${(s.price||0).toFixed(2)} ₽</strong></p>
+          <p class="subtle" style="margin:8px 0 0">Стоимость: <strong>${(s.price || 0).toFixed(2)} ₽</strong></p>
           <div class="ord-actions" style="margin-top:8px">
             <a class="btn-secondary" href="/service.html?id=${upcoming.serviceId}">Подробнее</a>
             <button class="btn" onclick="location.href='/service.html?id=${upcoming.serviceId}&orderId=${upcoming.id}'">Переназначить</button>
-            ${ (upcoming.status==='NEW'||upcoming.status==='ACCEPTED') ? `<button class="btn-danger" id="upCancel">Отменить</button>` : '' }
+            ${(upcoming.status === 'NEW' || upcoming.status === 'ACCEPTED') ? `<button class="btn-danger" id="upCancel">Отменить</button>` : ''}
           </div>
         </div>
       `;
     }
 
-    function reorder(serviceId, orderId=null){
+    function reorder(serviceId, orderId = null) {
       const suffix = orderId ? `&orderId=${orderId}` : '';
       location.href = `/service.html?id=${serviceId}${suffix}`;
     }
 
-    function renderOrdersTab(){
+    function renderOrdersTab() {
       const screen = q('#screen');
+      if (!screen) return;
+      
       screen.innerHTML = `
         <section class="card" style="grid-column: 1 / -1">
           <div class="card-title">
             <h2>Мои заказы</h2>
             <div class="pillbar" id="ordPills">
-              ${['ALL','NEW','ACCEPTED','DONE','REJECTED','CANCELLED'].map(st=>`
-                <button class="pill ${orderFilter===st?'active':''}" data-st="${st}">
-                  ${st==='ALL' ? 'Все' : statusName[st]}
+              ${['ALL', 'NEW', 'ACCEPTED', 'DONE', 'REJECTED', 'CANCELLED'].map(st => `
+                <button class="pill ${orderFilter === st ? 'active' : ''}" data-st="${st}">
+                  ${st === 'ALL' ? 'Все' : escapeHtml(statusName[st])}
                 </button>`).join('')}
             </div>
           </div>
           <div class="search-row">
-            <input id="ordSearch" class="input" placeholder="Поиск по названию услуги…" value="${orderQuery}"/>
+            <input id="ordSearch" class="input" placeholder="Поиск по названию услуги…" value="${escapeHtml(orderQuery)}"/>
           </div>
           <div class="order-list" id="ordList" style="margin-top:10px"></div>
         </section>
       `;
 
-      q('#ordPills').onclick = (e)=>{
-        const b = e.target.closest('.pill'); if(!b) return;
-        orderFilter = b.dataset.st;
-        qa('#ordPills .pill').forEach(x=>x.classList.remove('active'));
-        b.classList.add('active');
-        drawOrders();
-      };
-      q('#ordSearch').oninput = e=>{ orderQuery = (e.target.value||'').trim().toLowerCase(); drawOrders(); };
+      const pillsDiv = q('#ordPills');
+      if (pillsDiv) {
+        pillsDiv.onclick = (e) => {
+          const b = e.target.closest('.pill');
+          if (!b) return;
+          orderFilter = b.dataset.st;
+          qa('#ordPills .pill').forEach(x => x.classList.remove('active'));
+          b.classList.add('active');
+          drawOrders();
+        };
+      }
+      
+      const searchInput = q('#ordSearch');
+      if (searchInput) {
+        searchInput.oninput = (e) => {
+          orderQuery = (e.target.value || '').trim().toLowerCase();
+          drawOrders();
+        };
+      }
 
       drawOrders();
     }
 
-    function drawOrders(){
+    function drawOrders() {
       const grid = q('#ordList');
+      if (!grid) return;
+      
       let list = [...orders];
-      if(orderFilter!=='ALL') list = list.filter(o=> o.status===orderFilter);
-      if(orderQuery){
-        list = list.filter(o=>{
-          const s = services.find(x=>x.id===o.serviceId) || {};
-          return (s.title||'').toLowerCase().includes(orderQuery);
+      if (orderFilter !== 'ALL') list = list.filter(o => o.status === orderFilter);
+      if (orderQuery) {
+        list = list.filter(o => {
+          const s = services.find(x => x.id === o.serviceId) || {};
+          return (s.title || '').toLowerCase().includes(orderQuery);
         });
       }
-      if(!list.length){
+      
+      if (!list.length) {
         grid.innerHTML = `<div class="empty">Нет заказов в выбранной выборке.</div>`;
         return;
       }
+      
       grid.innerHTML = '';
-      list.sort((a,b)=> getPseudoUtcComparableTimestamp(b.status_date||b.desired_datetime||0) - getPseudoUtcComparableTimestamp(a.status_date||a.desired_datetime||0));
-      list.forEach(o=>{
-        const s = services.find(x=>x.id===o.serviceId) || {};
+      list.sort((a, b) => getPseudoUtcComparableTimestamp(b.status_date || b.desired_datetime || 0) - getPseudoUtcComparableTimestamp(a.status_date || a.desired_datetime || 0));
+      
+      list.forEach(o => {
+        const s = services.find(x => x.id === o.serviceId) || {};
         const whenStr = o.desired_datetime ? formatPseudoUtcDateTime(o.desired_datetime) : '—';
         const showWhen = whenStr !== '—';
-        const el = document.createElement('div');
-        el.className='card order-card';
-        el.dataset.orderId = String(o.id);
+        
+        const card = document.createElement('div');
+        card.className = 'card order-card';
+        card.dataset.orderId = String(o.id);
         if (pendingFocusOrderId && Number(pendingFocusOrderId) === Number(o.id)) {
-          el.classList.add('is-highlighted');
+          card.classList.add('is-highlighted');
         }
-        el.innerHTML = `
-          <h3>${s.title || 'Услуга'}</h3>
-          <div class="order-meta">
-            <span class="status-badge">${statusName[o.status] || o.status}</span>
-            ${ showWhen ? ` • <span class="when">${whenStr}</span>` : '' }
-          </div>
-          <p class="subtle" style="margin:6px 0">Стоимость: <strong>${(s.price||0).toFixed(2)} ₽</strong></p>
-          <div class="ord-actions">
-            ${(o.status==='NEW'||o.status==='ACCEPTED') ? `<button class="btn-secondary" data-cancel="${o.id}">Отменить</button>` : ''}
-            ${(o.status==='NEW'||o.status==='ACCEPTED')
-              ? `<button class="btn" data-reschedule="${o.id}" data-service="${o.serviceId}">Переназначить</button>`
-              : `<button class="btn" data-reorder="${o.serviceId}">Повторить</button>`}
-            <a class="btn-secondary" href="/service.html?id=${o.serviceId}">Подробнее</a>
-          </div>
-        `;
-        const c = el.querySelector('[data-cancel]');
-        if(c) c.onclick = ()=> cancelOrder(o.id, async ()=> { await loadOrders(); renderMiniKPI(); drawOrders(); });
-        const rescheduleBtn = el.querySelector('[data-reschedule]');
-        if(rescheduleBtn) rescheduleBtn.onclick = ()=> reorder(o.serviceId, o.id);
-        const reorderBtn = el.querySelector('[data-reorder]');
-        if(reorderBtn) reorderBtn.onclick = ()=> reorder(o.serviceId);
-        grid.append(el);
+        
+        const title = document.createElement('h3');
+        title.textContent = escapeHtml(s.title || 'Услуга');
+        
+        const metaDiv = document.createElement('div');
+        metaDiv.className = 'order-meta';
+        
+        const badgeSpan = document.createElement('span');
+        badgeSpan.className = 'status-badge';
+        badgeSpan.textContent = statusName[o.status] || o.status;
+        metaDiv.appendChild(badgeSpan);
+        
+        if (showWhen) {
+          const whenSpan = document.createElement('span');
+          whenSpan.innerHTML = ` • <span class="when">${escapeHtml(whenStr)}</span>`;
+          metaDiv.appendChild(whenSpan);
+        }
+        
+        const priceP = document.createElement('p');
+        priceP.className = 'subtle';
+        priceP.style.margin = '6px 0';
+        priceP.innerHTML = `Стоимость: <strong>${(s.price || 0).toFixed(2)} ₽</strong>`;
+        
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'ord-actions';
+        
+        if (o.status === 'NEW' || o.status === 'ACCEPTED') {
+          const cancelBtn = document.createElement('button');
+          cancelBtn.className = 'btn-secondary';
+          cancelBtn.textContent = 'Отменить';
+          cancelBtn.onclick = () => cancelOrder(o.id, async () => {
+            await loadOrders();
+            renderMiniKPI();
+            drawOrders();
+          });
+          actionsDiv.appendChild(cancelBtn);
+        }
+        
+        if (o.status === 'NEW' || o.status === 'ACCEPTED') {
+          const rescheduleBtn = document.createElement('button');
+          rescheduleBtn.className = 'btn';
+          rescheduleBtn.textContent = 'Переназначить';
+          rescheduleBtn.onclick = () => reorder(o.serviceId, o.id);
+          actionsDiv.appendChild(rescheduleBtn);
+        } else {
+          const repeatBtn = document.createElement('button');
+          repeatBtn.className = 'btn';
+          repeatBtn.textContent = 'Повторить';
+          repeatBtn.onclick = () => reorder(o.serviceId);
+          actionsDiv.appendChild(repeatBtn);
+        }
+        
+        const detailsLink = document.createElement('a');
+        detailsLink.className = 'btn-secondary';
+        detailsLink.href = `/service.html?id=${o.serviceId}`;
+        detailsLink.textContent = 'Подробнее';
+        actionsDiv.appendChild(detailsLink);
+        
+        card.appendChild(title);
+        card.appendChild(metaDiv);
+        card.appendChild(priceP);
+        card.appendChild(actionsDiv);
+        grid.appendChild(card);
       });
 
       if (pendingFocusOrderId) {
         const target = grid.querySelector(`[data-order-id="${pendingFocusOrderId}"]`);
         if (target) {
           target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          setTimeout(()=> target.classList.remove('is-highlighted'), 4500);
+          setTimeout(() => target.classList.remove('is-highlighted'), 4500);
           pendingFocusOrderId = null;
           syncUrl();
         }
       }
     }
 
-    async function cancelOrder(id, after){
-      try{
-        await API.orders.setStatus(id,'CANCELLED','');
+    async function cancelOrder(id, after) {
+      try {
+        await API.orders.setStatus(id, 'CANCELLED', '');
         await loadOrders();
         renderMiniKPI();
         await window.AGRUS?.refreshNotifications?.();
         toast('Заказ отменён');
-        if(typeof after==='function') after(); else renderOverview();
-      }catch{
+        if (typeof after === 'function') after();
+        else renderOverview();
+      } catch {
         toast('Не удалось отменить заказ');
       }
     }
 
-    let timer=null;
-    function toast(text){
-      const t = q('#toast'); t.textContent = text; t.style.display='block';
-      clearTimeout(timer); timer = setTimeout(()=> t.style.display='none', 3000);
+    let timer = null;
+    function toast(text) {
+      const toastEl = q('#toast');
+      if (!toastEl) return;
+      toastEl.textContent = text;
+      toastEl.style.display = 'block';
+      clearTimeout(timer);
+      timer = setTimeout(() => toastEl.style.display = 'none', 3000);
     }
   </script>
 </body>

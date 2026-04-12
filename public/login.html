@@ -90,117 +90,260 @@
 
   <script src="/app.js"></script>
   <script>
-    const q  = (s)=>document.querySelector(s), qa=(s)=>document.querySelectorAll(s);
+    const q = (s) => document.querySelector(s);
+    const qa = (s) => document.querySelectorAll(s);
     const MIN_PASSWORD_LENGTH = 4;
 
-    function setRegisterFormError(message=""){ q("#registerFormError").textContent = message; }
-
-    function isEmail(str, el){
-      if(!str) return false;
-      const v = String(str).trim().toLowerCase().replace(/\s+/g, "");
-      const soft = /^[^@\s]+@[^@\s]+\.[^@\s]+$/i.test(v);
-      if(soft) return true;
-      try { if (el && typeof el.checkValidity === "function") return el.checkValidity(); } catch(_) {}
-      return false;
+    // Функция экранирования HTML (для безопасности)
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     }
 
-    const $login    = q("#loginForm");
+    function setRegisterFormError(message = "") {
+        const errorEl = q("#registerFormError");
+        if (errorEl) errorEl.textContent = message;
+    }
+
+    function isEmail(str, el) {
+        if (!str) return false;
+        const v = String(str).trim().toLowerCase().replace(/\s+/g, "");
+        const soft = /^[^\s@]+@([^\s@]+\.)+[^\s@]+$/i.test(v);
+        if (soft) return true;
+        try {
+            if (el && typeof el.checkValidity === "function") return el.checkValidity();
+        } catch (_) {}
+        return false;
+    }
+
+    // Валидация имени (безопасная)
+    function isValidName(name) {
+        if (!name || typeof name !== 'string') return false;
+        const trimmed = name.trim();
+        if (trimmed.length < 2 || trimmed.length > 100) return false;
+        // Разрешаем буквы, пробелы, дефисы и точки
+        const nameRegex = /^[а-яА-Яa-zA-Z\s\-.]{2,100}$/u;
+        return nameRegex.test(trimmed);
+    }
+
+    const $login = q("#loginForm");
     const $register = q("#registerForm");
-    const $title    = q("#authTitle");
-    const $toggle   = q("#toggleMode");
-    const $help     = q("#authHelp");
+    const $title = q("#authTitle");
+    const $toggle = q("#toggleMode");
+    const $help = q("#authHelp");
 
-    function renderHelp(isLogin){
-      $help.innerHTML = isLogin
-        ? 'Нет аккаунта? Нажмите <a href="?mode=register" class="auth-help-link" data-auth-mode="register">«Регистрация»</a>.'
-        : 'Есть аккаунт? Нажмите <a href="?mode=login" class="auth-help-link" data-auth-mode="login">«Вход»</a>.';
+    function renderHelp(isLogin) {
+        if ($help) {
+            $help.innerHTML = isLogin
+                ? 'Нет аккаунта? Нажмите <a href="?mode=register" class="auth-help-link" data-auth-mode="register">«Регистрация»</a>.'
+                : 'Есть аккаунт? Нажмите <a href="?mode=login" class="auth-help-link" data-auth-mode="login">«Вход»</a>.';
+        }
     }
 
-    function setMode(mode){
-      const isLogin = mode === "login";
-      $login.classList.toggle("hidden", !isLogin);
-      $register.classList.toggle("hidden", isLogin);
-      $title.textContent = isLogin ? "Вход" : "Регистрация";
-      $toggle.textContent = isLogin ? "Регистрация" : "Вход";
-      renderHelp(isLogin);
-      qa(".error").forEach(el=> el.textContent = "");
-      history.replaceState(null, "", isLogin ? "?mode=login" : "?mode=register");
+    function setMode(mode) {
+        const isLogin = mode === "login";
+        if ($login) $login.classList.toggle("hidden", !isLogin);
+        if ($register) $register.classList.toggle("hidden", isLogin);
+        if ($title) $title.textContent = isLogin ? "Вход" : "Регистрация";
+        if ($toggle) $toggle.textContent = isLogin ? "Регистрация" : "Вход";
+        renderHelp(isLogin);
+        
+        // Очищаем все ошибки
+        qa(".error").forEach(el => {
+            if (el) el.textContent = "";
+        });
+        
+        history.replaceState(null, "", isLogin ? "?mode=login" : "?mode=register");
     }
+
+    // Инициализация режима из URL
     const url = new URL(location.href);
     setMode(url.searchParams.get("mode") === "register" ? "register" : "login");
-    $toggle.addEventListener("click", ()=>{
-      const nowLogin = !$login.classList.contains("hidden");
-      setMode(nowLogin ? "register" : "login");
-    });
-    $help.addEventListener("click", (e)=>{
-      const link = e.target.closest("[data-auth-mode]");
-      if(!link) return;
-      e.preventDefault();
-      setMode(link.dataset.authMode);
-    });
 
-    function showLoginHints(force = false){
-      const el = q("#loginEmail");
-      const password = q("#loginPassword").value.trim();
-      const ok = isEmail(el.value, el);
-      q("#loginEmailError").textContent = (!el.value && !force) || ok ? "" : "Некорректный email";
-      q("#loginPasswordError").textContent = (!password && !force) || password.length >= MIN_PASSWORD_LENGTH ? "" : `Минимум ${MIN_PASSWORD_LENGTH} символа`;
+    // Переключение режима
+    if ($toggle) {
+        $toggle.addEventListener("click", () => {
+            const nowLogin = $login && !$login.classList.contains("hidden");
+            setMode(nowLogin ? "register" : "login");
+        });
     }
-    function showRegisterHints(force = false){
-      const el = q("#regEmail");
-      const ok = isEmail(el.value, el);
-      const p1 = q("#regPassword").value.trim();
-      const p2 = q("#regPassword2").value.trim();
-      const role = q("#regRole").value;
-      q("#regEmailError").textContent = (!el.value && !force) || ok ? "" : "Некорректный email";
-      q("#regPasswordError").textContent = (!p1 && !force) || p1.length >= MIN_PASSWORD_LENGTH ? "" : `Минимум ${MIN_PASSWORD_LENGTH} символа`;
-      q("#regPassword2Error").textContent = (!p2 && !force) || p1 === p2 ? "" : "Пароли должны совпадать";
-      q("#regRoleError").textContent = role ? "" : (force ? "Выберите роль" : "");
-      q("#regNameError").textContent = (!q("#regName").value.trim() && force) ? "Введите имя" : "";
+
+    // Обработка кликов по ссылкам в help
+    if ($help) {
+        $help.addEventListener("click", (e) => {
+            const link = e.target.closest("[data-auth-mode]");
+            if (!link) return;
+            e.preventDefault();
+            setMode(link.dataset.authMode);
+        });
     }
-    qa("#loginEmail, #loginPassword").forEach(el => el.addEventListener("input", showLoginHints));
-    qa("#regEmail, #regPassword, #regPassword2, #regRole, #regName").forEach(el => el.addEventListener("input", ()=>{ showRegisterHints(); setRegisterFormError(""); }));
 
-    // submit: вход
-    $login.addEventListener("submit", async (e)=>{
-      e.preventDefault(); showLoginHints(true);
-      const emailEl = q("#loginEmail");
-      const email = String(emailEl.value||"").trim().toLowerCase();
-      const pass  = q("#loginPassword").value.trim();
-      if(!isEmail(email, emailEl) || pass.length < MIN_PASSWORD_LENGTH) return;
-      try{
-        const { token, user } = await API.login(email, pass);
-        setToken(token);
-        location.href = user.role === "master" ? "/master.html" : "/client.html";  /* <-- ЛК клиента */
-      }catch{ q("#loginEmailError").textContent = "Неверный email или пароль"; }
-    });
-
-    // submit: регистрация
-    $register.addEventListener("submit", async (e)=>{
-      e.preventDefault(); showRegisterHints(true);
-      const emailEl = q("#regEmail");
-      const name  = q("#regName").value.trim();
-      const email = String(emailEl.value||"").trim().toLowerCase();
-      const p1    = q("#regPassword").value.trim();
-      const p2    = q("#regPassword2").value.trim();
-      const role  = q("#regRole").value;
-      const valid = !!name && isEmail(email, emailEl) && p1.length >= MIN_PASSWORD_LENGTH && p1 === p2 && !!role;
-      if(!valid) return;
-      try{
-        setRegisterFormError("");
-        const { token, user } = await API.register({ name, email, password: p1, role });
-        setToken(token);
-        location.href = user.role === "master" ? "/master.html" : "/client.html";  /* <-- ЛК клиента */
-      }catch(err){
-        if(err?.details?.code === "EMAIL_EXISTS") q("#regEmailError").textContent = "Почта уже зарегистрирована";
-        else if(err?.details?.code === "PASSWORD_TOO_SHORT") {
-          q("#regPasswordError").textContent = `Пароль слишком короткий. Минимум ${MIN_PASSWORD_LENGTH} символа`;
-          setRegisterFormError(`Пароль должен содержать минимум ${MIN_PASSWORD_LENGTH} символа.`);
+    // Валидация формы входа
+    function showLoginHints(force = false) {
+        const emailEl = q("#loginEmail");
+        const password = q("#loginPassword")?.value.trim() || "";
+        const ok = emailEl && isEmail(emailEl.value, emailEl);
+        
+        const emailError = q("#loginEmailError");
+        const passwordError = q("#loginPasswordError");
+        
+        if (emailError) {
+            emailError.textContent = (!emailEl?.value && !force) || ok ? "" : "Некорректный email";
         }
-        else if(err?.details?.code === "INVALID_ROLE") q("#regRoleError").textContent = "Выберите роль";
-        else setRegisterFormError(err?.message || "Ошибка регистрации");
-      }
+        if (passwordError) {
+            passwordError.textContent = (!password && !force) || password.length >= MIN_PASSWORD_LENGTH ? "" : `Минимум ${MIN_PASSWORD_LENGTH} символов`;
+        }
+    }
+
+    // Валидация формы регистрации
+    function showRegisterHints(force = false) {
+        const emailEl = q("#regEmail");
+        const ok = emailEl && isEmail(emailEl.value, emailEl);
+        const p1 = q("#regPassword")?.value.trim() || "";
+        const p2 = q("#regPassword2")?.value.trim() || "";
+        const role = q("#regRole")?.value || "";
+        const name = q("#regName")?.value.trim() || "";
+        
+        const emailError = q("#regEmailError");
+        const passwordError = q("#regPasswordError");
+        const password2Error = q("#regPassword2Error");
+        const roleError = q("#regRoleError");
+        const nameError = q("#regNameError");
+        
+        if (emailError) {
+            emailError.textContent = (!emailEl?.value && !force) || ok ? "" : "Некорректный email";
+        }
+        if (passwordError) {
+            passwordError.textContent = (!p1 && !force) || p1.length >= MIN_PASSWORD_LENGTH ? "" : `Минимум ${MIN_PASSWORD_LENGTH} символов`;
+        }
+        if (password2Error) {
+            password2Error.textContent = (!p2 && !force) || p1 === p2 ? "" : "Пароли должны совпадать";
+        }
+        if (roleError) {
+            roleError.textContent = role ? "" : (force ? "Выберите роль" : "");
+        }
+        if (nameError) {
+            nameError.textContent = (!name && force) ? "Введите имя" : "";
+            if (name && force && !isValidName(name)) {
+                nameError.textContent = "Имя должно содержать от 2 до 100 символов (буквы, пробелы, дефисы, точки)";
+            }
+        }
+    }
+
+    // Обработчики ввода
+    const loginInputs = ["#loginEmail", "#loginPassword"];
+    loginInputs.forEach(sel => {
+        const el = q(sel);
+        if (el) el.addEventListener("input", () => showLoginHints());
     });
+
+    const registerInputs = ["#regEmail", "#regPassword", "#regPassword2", "#regRole", "#regName"];
+    registerInputs.forEach(sel => {
+        const el = q(sel);
+        if (el) {
+            el.addEventListener("input", () => {
+                showRegisterHints();
+                setRegisterFormError("");
+            });
+        }
+    });
+
+    // ===== ОБРАБОТЧИК ВХОДА (ОБНОВЛЕН) =====
+    if ($login) {
+        $login.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            showLoginHints(true);
+            
+            const emailEl = q("#loginEmail");
+            const email = String(emailEl?.value || "").trim().toLowerCase();
+            const pass = q("#loginPassword")?.value.trim() || "";
+            
+            if (!isEmail(email, emailEl) || pass.length < MIN_PASSWORD_LENGTH) return;
+            
+            try {
+                // ВАЖНО: НЕ используем setToken() - токен придет в httpOnly cookie
+                const { user } = await API.login(email, pass);
+                
+                // Редирект в зависимости от роли
+                if (user.role === "master") {
+                    location.href = "/master.html";
+                } else {
+                    location.href = "/client.html";
+                }
+            } catch (err) {
+                const emailError = q("#loginEmailError");
+                if (emailError) emailError.textContent = "Неверный email или пароль";
+                console.error("Login error:", err);
+            }
+        });
+    }
+
+    // ===== ОБРАБОТЧИК РЕГИСТРАЦИИ (ОБНОВЛЕН) =====
+    if ($register) {
+        $register.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            showRegisterHints(true);
+            
+            const emailEl = q("#regEmail");
+            const name = q("#regName")?.value.trim() || "";
+            const email = String(emailEl?.value || "").trim().toLowerCase();
+            const p1 = q("#regPassword")?.value.trim() || "";
+            const p2 = q("#regPassword2")?.value.trim() || "";
+            const role = q("#regRole")?.value || "";
+            
+            // Валидация имени
+            const isValidNameResult = isValidName(name);
+            if (!isValidNameResult) {
+                const nameError = q("#regNameError");
+                if (nameError) nameError.textContent = "Имя должно содержать от 2 до 100 символов (буквы, пробелы, дефисы, точки)";
+                return;
+            }
+            
+            const valid = !!name && isValidNameResult && isEmail(email, emailEl) && 
+                         p1.length >= MIN_PASSWORD_LENGTH && p1 === p2 && !!role;
+            
+            if (!valid) return;
+            
+            try {
+                setRegisterFormError("");
+                // Экранируем имя перед отправкой
+                const safeName = escapeHtml(name);
+                // ВАЖНО: НЕ используем setToken() - токен придет в httpOnly cookie
+                const { user } = await API.register({ name: safeName, email, password: p1, role });
+                
+                // Редирект в зависимости от роли
+                if (user.role === "master") {
+                    location.href = "/master.html";
+                } else {
+                    location.href = "/client.html";
+                }
+            } catch (err) {
+                const emailError = q("#regEmailError");
+                const passwordError = q("#regPasswordError");
+                const roleError = q("#regRoleError");
+                
+                if (err?.details?.code === "EMAIL_EXISTS") {
+                    if (emailError) emailError.textContent = "Почта уже зарегистрирована";
+                } else if (err?.details?.code === "PASSWORD_TOO_SHORT") {
+                    if (passwordError) passwordError.textContent = `Пароль слишком короткий. Минимум ${MIN_PASSWORD_LENGTH} символов`;
+                    setRegisterFormError(`Пароль должен содержать минимум ${MIN_PASSWORD_LENGTH} символов.`);
+                } else if (err?.details?.code === "INVALID_ROLE") {
+                    if (roleError) roleError.textContent = "Выберите роль";
+                } else if (err?.details?.code === "INVALID_NAME") {
+                    const nameError = q("#regNameError");
+                    if (nameError) nameError.textContent = "Некорректное имя";
+                } else {
+                    setRegisterFormError(err?.message || "Ошибка регистрации");
+                }
+                console.error("Registration error:", err);
+            }
+        });
+    }
   </script>
 </body>
 </html>
