@@ -27,6 +27,7 @@ import analyticsRoutes from './server/routes/analytics.js';
 import notificationsRoutes from './server/routes/notifications.js';
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 const publicDir = path.join(__dirname, 'public');
 const catalogFile = path.join(publicDir, 'catalog.html');
